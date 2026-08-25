@@ -1,0 +1,553 @@
+{
+  "seed" : 42,
+  "count" : 300,
+  "windowStart" : "2026-07-27",
+  "windowEnd" : "2026-08-26",
+  "settlementCutoff" : "2026-08-28",
+  "totals" : {
+    "grossSales" : 1554691.47,
+    "failedAmount" : 86606.98,
+    "totalFees" : 13967.30,
+    "totalGst" : 2514.12,
+    "heldNet" : 48069.24,
+    "refundsTotal" : 76027.33,
+    "totalSettled" : 1327506.50,
+    "bankMissingTotal" : 108557.71,
+    "bankDuplicateTotal" : 226173.90,
+    "bankMismatchDelta" : 33.00,
+    "totalBankCredits" : 1445155.69
+  },
+  "anomalyCounts" : {
+    "AMOUNT_MISMATCH" : 3,
+    "BANK_DUPLICATE" : 3,
+    "BANK_MISSING" : 3,
+    "HELD_DISPUTE" : 9,
+    "PAYMENT_FAILED" : 15,
+    "REFUND_PRIOR_CYCLE" : 17
+  },
+  "anomalies" : [
+    {
+      "type" : "AMOUNT_MISMATCH",
+      "orderId" : null,
+      "utr" : "UTR2026073001",
+      "expectedAmount" : 21797.32,
+      "observedAmount" : 21846.32,
+      "expectedSettlementDate" : "2026-07-30",
+      "preWindow" : false,
+      "detail" : "bank credit differs from the settlement total by 49.00"
+    },
+    {
+      "type" : "AMOUNT_MISMATCH",
+      "orderId" : null,
+      "utr" : "UTR2026080301",
+      "expectedAmount" : 192932.39,
+      "observedAmount" : 192898.39,
+      "expectedSettlementDate" : "2026-08-03",
+      "preWindow" : false,
+      "detail" : "bank credit differs from the settlement total by -34.00"
+    },
+    {
+      "type" : "AMOUNT_MISMATCH",
+      "orderId" : null,
+      "utr" : "UTR2026081901",
+      "expectedAmount" : 38761.53,
+      "observedAmount" : 38779.53,
+      "expectedSettlementDate" : "2026-08-19",
+      "preWindow" : false,
+      "detail" : "bank credit differs from the settlement total by 18.00"
+    },
+    {
+      "type" : "BANK_DUPLICATE",
+      "orderId" : null,
+      "utr" : "UTR2026082101",
+      "expectedAmount" : 40825.42,
+      "observedAmount" : 81650.84,
+      "expectedSettlementDate" : "2026-08-21",
+      "preWindow" : false,
+      "detail" : "the bank posted this settlement credit twice"
+    },
+    {
+      "type" : "BANK_DUPLICATE",
+      "orderId" : null,
+      "utr" : "UTR2026082401",
+      "expectedAmount" : 129972.46,
+      "observedAmount" : 259944.92,
+      "expectedSettlementDate" : "2026-08-24",
+      "preWindow" : false,
+      "detail" : "the bank posted this settlement credit twice"
+    },
+    {
+      "type" : "BANK_DUPLICATE",
+      "orderId" : null,
+      "utr" : "UTR2026082501",
+      "expectedAmount" : 55376.02,
+      "observedAmount" : 110752.04,
+      "expectedSettlementDate" : "2026-08-25",
+      "preWindow" : false,
+      "detail" : "the bank posted this settlement credit twice"
+    },
+    {
+      "type" : "BANK_MISSING",
+      "orderId" : null,
+      "utr" : "UTR2026080701",
+      "expectedAmount" : 46796.49,
+      "observedAmount" : null,
+      "expectedSettlementDate" : "2026-08-07",
+      "preWindow" : false,
+      "detail" : "settlement of 46796.49 never appeared as a bank credit"
+    },
+    {
+      "type" : "BANK_MISSING",
+      "orderId" : null,
+      "utr" : "UTR2026081101",
+      "expectedAmount" : 39226.47,
+      "observedAmount" : null,
+      "expectedSettlementDate" : "2026-08-11",
+      "preWindow" : false,
+      "detail" : "settlement of 39226.47 never appeared as a bank credit"
+    },
+    {
+      "type" : "BANK_MISSING",
+      "orderId" : null,
+      "utr" : "UTR2026082701",
+      "expectedAmount" : 22534.75,
+      "observedAmount" : null,
+      "expectedSettlementDate" : "2026-08-27",
+      "preWindow" : false,
+      "detail" : "settlement of 22534.75 never appeared as a bank credit"
+    },
+    {
+      "type" : "HELD_DISPUTE",
+      "orderId" : "ORD-000214",
+      "utr" : null,
+      "expectedAmount" : 5932.68,
+      "observedAmount" : null,
+      "expectedSettlementDate" : null,
+      "preWindow" : false,
+      "detail" : "dispute OPEN opened 2026-08-18 holds this payment out of settlement"
+    },
+    {
+      "type" : "HELD_DISPUTE",
+      "orderId" : "ORD-000228",
+      "utr" : null,
+      "expectedAmount" : 608.29,
+      "observedAmount" : null,
+      "expectedSettlementDate" : "2026-09-02",
+      "preWindow" : false,
+      "detail" : "dispute WON opened 2026-08-19 holds this payment out of settlement"
+    },
+    {
+      "type" : "HELD_DISPUTE",
+      "orderId" : "ORD-000234",
+      "utr" : null,
+      "expectedAmount" : 4104.75,
+      "observedAmount" : null,
+      "expectedSettlementDate" : "2026-09-03",
+      "preWindow" : false,
+      "detail" : "dispute WON opened 2026-08-20 holds this payment out of settlement"
+    },
+    {
+      "type" : "HELD_DISPUTE",
+      "orderId" : "ORD-000242",
+      "utr" : null,
+      "expectedAmount" : 5816.99,
+      "observedAmount" : null,
+      "expectedSettlementDate" : "2026-09-04",
+      "preWindow" : false,
+      "detail" : "dispute WON opened 2026-08-21 holds this payment out of settlement"
+    },
+    {
+      "type" : "HELD_DISPUTE",
+      "orderId" : "ORD-000246",
+      "utr" : null,
+      "expectedAmount" : 8680.00,
+      "observedAmount" : null,
+      "expectedSettlementDate" : null,
+      "preWindow" : false,
+      "detail" : "dispute LOST opened 2026-08-22 holds this payment out of settlement"
+    },
+    {
+      "type" : "HELD_DISPUTE",
+      "orderId" : "ORD-000274",
+      "utr" : null,
+      "expectedAmount" : 9158.63,
+      "observedAmount" : null,
+      "expectedSettlementDate" : null,
+      "preWindow" : false,
+      "detail" : "dispute LOST opened 2026-08-24 holds this payment out of settlement"
+    },
+    {
+      "type" : "HELD_DISPUTE",
+      "orderId" : "ORD-000284",
+      "utr" : null,
+      "expectedAmount" : 3582.65,
+      "observedAmount" : null,
+      "expectedSettlementDate" : null,
+      "preWindow" : false,
+      "detail" : "dispute OPEN opened 2026-08-25 holds this payment out of settlement"
+    },
+    {
+      "type" : "HELD_DISPUTE",
+      "orderId" : "ORD-000289",
+      "utr" : null,
+      "expectedAmount" : 1614.25,
+      "observedAmount" : null,
+      "expectedSettlementDate" : null,
+      "preWindow" : false,
+      "detail" : "dispute OPEN opened 2026-08-26 holds this payment out of settlement"
+    },
+    {
+      "type" : "HELD_DISPUTE",
+      "orderId" : "ORD-000292",
+      "utr" : null,
+      "expectedAmount" : 8571.00,
+      "observedAmount" : null,
+      "expectedSettlementDate" : null,
+      "preWindow" : false,
+      "detail" : "dispute LOST opened 2026-08-26 holds this payment out of settlement"
+    },
+    {
+      "type" : "PAYMENT_FAILED",
+      "orderId" : "ORD-000006",
+      "utr" : null,
+      "expectedAmount" : 7404.00,
+      "observedAmount" : null,
+      "expectedSettlementDate" : null,
+      "preWindow" : false,
+      "detail" : "payment failed at the gateway, so it never reached a settlement or the bank"
+    },
+    {
+      "type" : "PAYMENT_FAILED",
+      "orderId" : "ORD-000016",
+      "utr" : null,
+      "expectedAmount" : 4596.99,
+      "observedAmount" : null,
+      "expectedSettlementDate" : null,
+      "preWindow" : false,
+      "detail" : "payment failed at the gateway, so it never reached a settlement or the bank"
+    },
+    {
+      "type" : "PAYMENT_FAILED",
+      "orderId" : "ORD-000050",
+      "utr" : null,
+      "expectedAmount" : 4293.00,
+      "observedAmount" : null,
+      "expectedSettlementDate" : null,
+      "preWindow" : false,
+      "detail" : "payment failed at the gateway, so it never reached a settlement or the bank"
+    },
+    {
+      "type" : "PAYMENT_FAILED",
+      "orderId" : "ORD-000085",
+      "utr" : null,
+      "expectedAmount" : 3956.00,
+      "observedAmount" : null,
+      "expectedSettlementDate" : null,
+      "preWindow" : false,
+      "detail" : "payment failed at the gateway, so it never reached a settlement or the bank"
+    },
+    {
+      "type" : "PAYMENT_FAILED",
+      "orderId" : "ORD-000090",
+      "utr" : null,
+      "expectedAmount" : 7393.50,
+      "observedAmount" : null,
+      "expectedSettlementDate" : null,
+      "preWindow" : false,
+      "detail" : "payment failed at the gateway, so it never reached a settlement or the bank"
+    },
+    {
+      "type" : "PAYMENT_FAILED",
+      "orderId" : "ORD-000092",
+      "utr" : null,
+      "expectedAmount" : 5225.75,
+      "observedAmount" : null,
+      "expectedSettlementDate" : null,
+      "preWindow" : false,
+      "detail" : "payment failed at the gateway, so it never reached a settlement or the bank"
+    },
+    {
+      "type" : "PAYMENT_FAILED",
+      "orderId" : "ORD-000110",
+      "utr" : null,
+      "expectedAmount" : 2635.25,
+      "observedAmount" : null,
+      "expectedSettlementDate" : null,
+      "preWindow" : false,
+      "detail" : "payment failed at the gateway, so it never reached a settlement or the bank"
+    },
+    {
+      "type" : "PAYMENT_FAILED",
+      "orderId" : "ORD-000131",
+      "utr" : null,
+      "expectedAmount" : 6306.75,
+      "observedAmount" : null,
+      "expectedSettlementDate" : null,
+      "preWindow" : false,
+      "detail" : "payment failed at the gateway, so it never reached a settlement or the bank"
+    },
+    {
+      "type" : "PAYMENT_FAILED",
+      "orderId" : "ORD-000135",
+      "utr" : null,
+      "expectedAmount" : 6792.50,
+      "observedAmount" : null,
+      "expectedSettlementDate" : null,
+      "preWindow" : false,
+      "detail" : "payment failed at the gateway, so it never reached a settlement or the bank"
+    },
+    {
+      "type" : "PAYMENT_FAILED",
+      "orderId" : "ORD-000162",
+      "utr" : null,
+      "expectedAmount" : 6245.75,
+      "observedAmount" : null,
+      "expectedSettlementDate" : null,
+      "preWindow" : false,
+      "detail" : "payment failed at the gateway, so it never reached a settlement or the bank"
+    },
+    {
+      "type" : "PAYMENT_FAILED",
+      "orderId" : "ORD-000170",
+      "utr" : null,
+      "expectedAmount" : 2728.00,
+      "observedAmount" : null,
+      "expectedSettlementDate" : null,
+      "preWindow" : false,
+      "detail" : "payment failed at the gateway, so it never reached a settlement or the bank"
+    },
+    {
+      "type" : "PAYMENT_FAILED",
+      "orderId" : "ORD-000197",
+      "utr" : null,
+      "expectedAmount" : 9950.50,
+      "observedAmount" : null,
+      "expectedSettlementDate" : null,
+      "preWindow" : false,
+      "detail" : "payment failed at the gateway, so it never reached a settlement or the bank"
+    },
+    {
+      "type" : "PAYMENT_FAILED",
+      "orderId" : "ORD-000202",
+      "utr" : null,
+      "expectedAmount" : 6773.25,
+      "observedAmount" : null,
+      "expectedSettlementDate" : null,
+      "preWindow" : false,
+      "detail" : "payment failed at the gateway, so it never reached a settlement or the bank"
+    },
+    {
+      "type" : "PAYMENT_FAILED",
+      "orderId" : "ORD-000217",
+      "utr" : null,
+      "expectedAmount" : 5559.75,
+      "observedAmount" : null,
+      "expectedSettlementDate" : null,
+      "preWindow" : false,
+      "detail" : "payment failed at the gateway, so it never reached a settlement or the bank"
+    },
+    {
+      "type" : "PAYMENT_FAILED",
+      "orderId" : "ORD-000221",
+      "utr" : null,
+      "expectedAmount" : 6745.99,
+      "observedAmount" : null,
+      "expectedSettlementDate" : null,
+      "preWindow" : false,
+      "detail" : "payment failed at the gateway, so it never reached a settlement or the bank"
+    },
+    {
+      "type" : "REFUND_PRIOR_CYCLE",
+      "orderId" : "ORD-000030",
+      "utr" : null,
+      "expectedAmount" : 1328.99,
+      "observedAmount" : null,
+      "expectedSettlementDate" : "2026-08-04",
+      "preWindow" : false,
+      "detail" : "refund created after its payment settled, so it is deducted from the 2026-08-04 cycle instead"
+    },
+    {
+      "type" : "REFUND_PRIOR_CYCLE",
+      "orderId" : "ORD-000051",
+      "utr" : null,
+      "expectedAmount" : 3892.40,
+      "observedAmount" : null,
+      "expectedSettlementDate" : "2026-08-05",
+      "preWindow" : false,
+      "detail" : "refund created after its payment settled, so it is deducted from the 2026-08-05 cycle instead"
+    },
+    {
+      "type" : "REFUND_PRIOR_CYCLE",
+      "orderId" : "ORD-000057",
+      "utr" : null,
+      "expectedAmount" : 2333.25,
+      "observedAmount" : null,
+      "expectedSettlementDate" : "2026-08-07",
+      "preWindow" : false,
+      "detail" : "refund created after its payment settled, so it is deducted from the 2026-08-07 cycle instead"
+    },
+    {
+      "type" : "REFUND_PRIOR_CYCLE",
+      "orderId" : "ORD-000094",
+      "utr" : null,
+      "expectedAmount" : 5521.60,
+      "observedAmount" : null,
+      "expectedSettlementDate" : "2026-08-10",
+      "preWindow" : false,
+      "detail" : "refund created after its payment settled, so it is deducted from the 2026-08-10 cycle instead"
+    },
+    {
+      "type" : "REFUND_PRIOR_CYCLE",
+      "orderId" : "ORD-000114",
+      "utr" : null,
+      "expectedAmount" : 292.16,
+      "observedAmount" : null,
+      "expectedSettlementDate" : "2026-08-10",
+      "preWindow" : false,
+      "detail" : "refund created after its payment settled, so it is deducted from the 2026-08-10 cycle instead"
+    },
+    {
+      "type" : "REFUND_PRIOR_CYCLE",
+      "orderId" : "ORD-000126",
+      "utr" : null,
+      "expectedAmount" : 4180.13,
+      "observedAmount" : null,
+      "expectedSettlementDate" : "2026-08-14",
+      "preWindow" : false,
+      "detail" : "refund created after its payment settled, so it is deducted from the 2026-08-14 cycle instead"
+    },
+    {
+      "type" : "REFUND_PRIOR_CYCLE",
+      "orderId" : "ORD-000132",
+      "utr" : null,
+      "expectedAmount" : 4762.99,
+      "observedAmount" : null,
+      "expectedSettlementDate" : "2026-08-13",
+      "preWindow" : false,
+      "detail" : "refund created after its payment settled, so it is deducted from the 2026-08-13 cycle instead"
+    },
+    {
+      "type" : "REFUND_PRIOR_CYCLE",
+      "orderId" : "ORD-000144",
+      "utr" : null,
+      "expectedAmount" : 7166.75,
+      "observedAmount" : null,
+      "expectedSettlementDate" : "2026-08-17",
+      "preWindow" : false,
+      "detail" : "refund created after its payment settled, so it is deducted from the 2026-08-17 cycle instead"
+    },
+    {
+      "type" : "REFUND_PRIOR_CYCLE",
+      "orderId" : "ORD-000176",
+      "utr" : null,
+      "expectedAmount" : 5733.75,
+      "observedAmount" : null,
+      "expectedSettlementDate" : "2026-08-24",
+      "preWindow" : false,
+      "detail" : "refund created after its payment settled, so it is deducted from the 2026-08-24 cycle instead"
+    },
+    {
+      "type" : "REFUND_PRIOR_CYCLE",
+      "orderId" : "ORD-000177",
+      "utr" : null,
+      "expectedAmount" : 2653.14,
+      "observedAmount" : null,
+      "expectedSettlementDate" : "2026-08-18",
+      "preWindow" : false,
+      "detail" : "refund created after its payment settled, so it is deducted from the 2026-08-18 cycle instead"
+    },
+    {
+      "type" : "REFUND_PRIOR_CYCLE",
+      "orderId" : "ORD-000194",
+      "utr" : null,
+      "expectedAmount" : 4294.99,
+      "observedAmount" : null,
+      "expectedSettlementDate" : "2026-08-24",
+      "preWindow" : false,
+      "detail" : "refund created after its payment settled, so it is deducted from the 2026-08-24 cycle instead"
+    },
+    {
+      "type" : "REFUND_PRIOR_CYCLE",
+      "orderId" : "ORD-000200",
+      "utr" : null,
+      "expectedAmount" : 1176.44,
+      "observedAmount" : null,
+      "expectedSettlementDate" : "2026-08-19",
+      "preWindow" : false,
+      "detail" : "refund created after its payment settled, so it is deducted from the 2026-08-19 cycle instead"
+    },
+    {
+      "type" : "REFUND_PRIOR_CYCLE",
+      "orderId" : "ORD-PRE-0001",
+      "utr" : null,
+      "expectedAmount" : 6617.99,
+      "observedAmount" : null,
+      "expectedSettlementDate" : "2026-08-17",
+      "preWindow" : true,
+      "detail" : "refund of an order from before the batch window, so no order row exists to match it"
+    },
+    {
+      "type" : "REFUND_PRIOR_CYCLE",
+      "orderId" : "ORD-PRE-0002",
+      "utr" : null,
+      "expectedAmount" : 9176.75,
+      "observedAmount" : null,
+      "expectedSettlementDate" : "2026-08-13",
+      "preWindow" : true,
+      "detail" : "refund of an order from before the batch window, so no order row exists to match it"
+    },
+    {
+      "type" : "REFUND_PRIOR_CYCLE",
+      "orderId" : "ORD-PRE-0003",
+      "utr" : null,
+      "expectedAmount" : 6396.00,
+      "observedAmount" : null,
+      "expectedSettlementDate" : "2026-08-03",
+      "preWindow" : true,
+      "detail" : "refund of an order from before the batch window, so no order row exists to match it"
+    },
+    {
+      "type" : "REFUND_PRIOR_CYCLE",
+      "orderId" : "ORD-PRE-0004",
+      "utr" : null,
+      "expectedAmount" : 2281.00,
+      "observedAmount" : null,
+      "expectedSettlementDate" : "2026-08-13",
+      "preWindow" : true,
+      "detail" : "refund of an order from before the batch window, so no order row exists to match it"
+    },
+    {
+      "type" : "REFUND_PRIOR_CYCLE",
+      "orderId" : "ORD-PRE-0005",
+      "utr" : null,
+      "expectedAmount" : 8219.00,
+      "observedAmount" : null,
+      "expectedSettlementDate" : "2026-07-30",
+      "preWindow" : true,
+      "detail" : "refund of an order from before the batch window, so no order row exists to match it"
+    }
+  ],
+  "expectedFutureSettlements" : [
+    {
+      "date" : "2026-09-02",
+      "expectedAmount" : 608.29,
+      "breakdownByMethod" : {
+        "WALLET" : 608.29
+      }
+    },
+    {
+      "date" : "2026-09-03",
+      "expectedAmount" : 4104.75,
+      "breakdownByMethod" : {
+        "UPI" : 4104.75
+      }
+    },
+    {
+      "date" : "2026-09-04",
+      "expectedAmount" : 5816.99,
+      "breakdownByMethod" : {
+        "UPI" : 5816.99
+      }
+    }
+  ]
+}
