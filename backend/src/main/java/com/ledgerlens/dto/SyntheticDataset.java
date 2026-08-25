@@ -1,8 +1,8 @@
-package com.ledgerlens.generator;
+package com.ledgerlens.dto;
 
-import com.ledgerlens.domain.DisputeStatus;
-import com.ledgerlens.domain.PaymentMethod;
-import com.ledgerlens.domain.PaymentStatus;
+import com.ledgerlens.entity.DisputeStatus;
+import com.ledgerlens.entity.PaymentMethod;
+import com.ledgerlens.entity.PaymentStatus;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;

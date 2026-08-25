@@ -1,11 +1,11 @@
 package com.ledgerlens;
 
-import com.ledgerlens.domain.ExceptionOrigin;
-import com.ledgerlens.domain.ExceptionRecord;
-import com.ledgerlens.domain.ExceptionStatus;
-import com.ledgerlens.domain.IngestBatch;
-import com.ledgerlens.domain.IngestSource;
-import com.ledgerlens.domain.MerchantOrder;
+import com.ledgerlens.entity.ExceptionOrigin;
+import com.ledgerlens.entity.ExceptionRecord;
+import com.ledgerlens.entity.ExceptionStatus;
+import com.ledgerlens.entity.IngestBatch;
+import com.ledgerlens.entity.IngestSource;
+import com.ledgerlens.entity.MerchantOrder;
 import jakarta.persistence.EntityManager;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;

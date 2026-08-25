@@ -1,4 +1,4 @@
-package com.ledgerlens.generator;
+package com.ledgerlens.service;
 
 import com.fasterxml.jackson.core.StreamWriteFeature;
 import com.fasterxml.jackson.core.util.DefaultIndenter;
@@ -7,9 +7,10 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.SerializationFeature;
 import com.fasterxml.jackson.databind.json.JsonMapper;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
-import com.ledgerlens.generator.SyntheticDataset.BankRow;
-import com.ledgerlens.generator.SyntheticDataset.OrderRow;
-import com.ledgerlens.generator.SyntheticDataset.SettlementRow;
+import com.ledgerlens.dto.SyntheticDataset;
+import com.ledgerlens.dto.SyntheticDataset.BankRow;
+import com.ledgerlens.dto.SyntheticDataset.OrderRow;
+import com.ledgerlens.dto.SyntheticDataset.SettlementRow;
 import org.apache.commons.csv.CSVFormat;
 import org.apache.commons.csv.CSVPrinter;
 

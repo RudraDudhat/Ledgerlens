@@ -1,6 +1,6 @@
 package com.ledgerlens.rules;
 
-import com.ledgerlens.domain.PaymentMethod;
+import com.ledgerlens.entity.PaymentMethod;
 import org.junit.jupiter.api.Test;
 
 import java.math.BigDecimal;

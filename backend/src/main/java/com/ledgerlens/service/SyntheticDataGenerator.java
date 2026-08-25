@@ -1,12 +1,14 @@
-package com.ledgerlens.generator;
+package com.ledgerlens.service;
 
-import com.ledgerlens.domain.DisputeStatus;
-import com.ledgerlens.domain.ExceptionStatus;
-import com.ledgerlens.domain.PaymentMethod;
-import com.ledgerlens.domain.PaymentStatus;
-import com.ledgerlens.generator.SyntheticDataset.BankRow;
-import com.ledgerlens.generator.SyntheticDataset.OrderRow;
-import com.ledgerlens.generator.SyntheticDataset.SettlementRow;
+import com.ledgerlens.entity.DisputeStatus;
+import com.ledgerlens.entity.ExceptionStatus;
+import com.ledgerlens.entity.PaymentMethod;
+import com.ledgerlens.entity.PaymentStatus;
+import com.ledgerlens.dto.AnswerKey;
+import com.ledgerlens.dto.SyntheticDataset;
+import com.ledgerlens.dto.SyntheticDataset.BankRow;
+import com.ledgerlens.dto.SyntheticDataset.OrderRow;
+import com.ledgerlens.dto.SyntheticDataset.SettlementRow;
 import com.ledgerlens.rules.FeeSchedule;
 import com.ledgerlens.rules.SettlementCalendar;
 

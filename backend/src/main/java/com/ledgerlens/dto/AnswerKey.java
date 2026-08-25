@@ -1,6 +1,6 @@
-package com.ledgerlens.generator;
+package com.ledgerlens.dto;
 
-import com.ledgerlens.domain.ExceptionStatus;
+import com.ledgerlens.entity.ExceptionStatus;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;

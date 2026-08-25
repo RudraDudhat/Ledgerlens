@@ -1,4 +1,4 @@
-package com.ledgerlens.domain;
+package com.ledgerlens.entity;
 
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;

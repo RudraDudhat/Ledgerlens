@@ -1,6 +1,6 @@
 package com.ledgerlens.rules;
 
-import com.ledgerlens.domain.PaymentMethod;
+import com.ledgerlens.entity.PaymentMethod;
 
 import java.time.DayOfWeek;
 import java.time.LocalDate;
