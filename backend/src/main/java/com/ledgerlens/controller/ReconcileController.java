@@ -1,5 +1,6 @@
 package com.ledgerlens.controller;
 
+import com.ledgerlens.dto.ExceptionView;
 import com.ledgerlens.dto.MatchView;
 import com.ledgerlens.dto.ReconcileSummary;
 import com.ledgerlens.dto.WaterfallStep;
@@ -37,6 +38,11 @@ public class ReconcileController {
     @GetMapping("/{batchId}/summary")
     public ReconcileSummary summary(@PathVariable UUID batchId) {
         return reconciliationService.summary(batchId);
+    }
+
+    @GetMapping("/{batchId}/exceptions")
+    public List<ExceptionView> exceptions(@PathVariable UUID batchId) {
+        return reconciliationService.exceptions(batchId);
     }
 
     @GetMapping("/{batchId}/waterfall")
