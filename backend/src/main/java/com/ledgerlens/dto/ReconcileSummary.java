@@ -18,6 +18,7 @@ public record ReconcileSummary(
         int bankEntryCount,
         int matchedBankEntryCount,
         Map<String, Integer> matchesByType,
+        Map<String, Integer> countsByStatus,
         BigDecimal grossSales,
         BigDecimal totalSettled,
         BigDecimal totalBankCredits) {

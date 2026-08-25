@@ -1,7 +1,10 @@
 package com.ledgerlens.service;
 
+import com.ledgerlens.dto.ExceptionView;
 import com.ledgerlens.dto.MatchView;
 import com.ledgerlens.dto.ReconcileSummary;
+import com.ledgerlens.entity.ExceptionStatus;
+import com.ledgerlens.repository.ExceptionRecordRepository;
 import com.ledgerlens.entity.AuditLog;
 import com.ledgerlens.repository.AuditLogRepository;
 import com.ledgerlens.entity.BankEntry;
@@ -44,6 +47,8 @@ public class ReconciliationService {
     private final BankEntryRepository bankEntryRepository;
     private final MatchRecordRepository matchRepository;
     private final AuditLogRepository auditLogRepository;
+    private final ExceptionRecordRepository exceptionRepository;
+    private final ExceptionDetectionService exceptionDetectionService;
     private final DeterministicMatcher matcher;
 
     public ReconciliationService(IngestBatchRepository ingestBatchRepository,
@@ -53,6 +58,8 @@ public class ReconciliationService {
                                  BankEntryRepository bankEntryRepository,
                                  MatchRecordRepository matchRepository,
                                  AuditLogRepository auditLogRepository,
+                                 ExceptionRecordRepository exceptionRepository,
+                                 ExceptionDetectionService exceptionDetectionService,
                                  DeterministicMatcher matcher) {
         this.ingestBatchRepository = ingestBatchRepository;
         this.orderRepository = orderRepository;
@@ -61,6 +68,8 @@ public class ReconciliationService {
         this.bankEntryRepository = bankEntryRepository;
         this.matchRepository = matchRepository;
         this.auditLogRepository = auditLogRepository;
+        this.exceptionRepository = exceptionRepository;
+        this.exceptionDetectionService = exceptionDetectionService;
         this.matcher = matcher;
     }
 
@@ -77,6 +86,8 @@ public class ReconciliationService {
         List<MatchRecord> matches = matcher.match(batchId, orders,
                 settlementLineRepository.findByBatchIdOrderById(batchId), settlements, bankEntries);
         matchRepository.saveAll(matches);
+        matchRepository.flush();
+        exceptionDetectionService.detect(batchId);
 
         ReconcileSummary summary = buildSummary(batchId, orders, settlements, bankEntries, matches);
         auditLogRepository.save(auditEntry(batchId, summary));
@@ -91,6 +102,21 @@ public class ReconciliationService {
                 settlementBatchRepository.findByBatchIdOrderBySettledOn(batchId),
                 bankEntryRepository.findByBatchIdOrderById(batchId),
                 matchRepository.findByBatchIdOrderById(batchId));
+    }
+
+    @Transactional(readOnly = true)
+    public List<ExceptionView> exceptions(UUID batchId) {
+        requireBatch(batchId);
+        return exceptionRepository.findByBatchIdOrderById(batchId).stream()
+                .map(record -> new ExceptionView(
+                        record.getId(),
+                        record.getStatus().name(),
+                        record.getEntityRef(),
+                        record.getReason(),
+                        record.getConfidence(),
+                        record.getOrigin().name(),
+                        record.getSourceRowIds()))
+                .toList();
     }
 
     @Transactional(readOnly = true)
@@ -128,6 +154,11 @@ public class ReconciliationService {
         Map<String, Integer> matchesByType = new TreeMap<>();
         matches.forEach(match -> matchesByType.merge(match.getMatchType(), 1, Integer::sum));
 
+        Map<String, Integer> countsByStatus = new TreeMap<>();
+        countsByStatus.put(ExceptionStatus.MATCHED.name(), matchedOrders);
+        exceptionRepository.findByBatchIdOrderById(batchId)
+                .forEach(record -> countsByStatus.merge(record.getStatus().name(), 1, Integer::sum));
+
         BigDecimal matchRate = orders.isEmpty()
                 ? ZERO
                 : BigDecimal.valueOf(matchedOrders).divide(BigDecimal.valueOf(orders.size()), 4, RoundingMode.HALF_UP);
@@ -137,6 +168,7 @@ public class ReconciliationService {
                 settlements.size(), bankMatches,
                 bankEntries.size(), bankMatches,
                 matchesByType,
+                countsByStatus,
                 sum(orders, MerchantOrder::getAmount),
                 sum(settlements, SettlementBatch::getAmount),
                 sum(bankEntries, BankEntry::getAmount));
