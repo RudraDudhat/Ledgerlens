@@ -1,0 +1,14 @@
+# Copy this file to application.yml (application.yml is gitignored) and adjust values.
+# No secrets belong in either file: API keys are read from environment variables only.
+spring:
+  datasource:
+    url: jdbc:postgresql://localhost:5432/ledgerlens
+    username: ledgerlens
+    password: ledgerlens
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    open-in-view: false
+  sql:
+    init:
+      mode: always
