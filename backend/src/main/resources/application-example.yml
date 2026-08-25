@@ -12,3 +12,8 @@ spring:
   sql:
     init:
       mode: always
+
+ledgerlens:
+  # Ground truth for /api/metrics/{batchId}. Scores are omitted when this file is absent,
+  # which is the normal case for a real merchant batch.
+  answer-key-path: data/answer_key.json
