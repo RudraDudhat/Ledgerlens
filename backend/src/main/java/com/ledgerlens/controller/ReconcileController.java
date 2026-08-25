@@ -2,7 +2,9 @@ package com.ledgerlens.controller;
 
 import com.ledgerlens.dto.MatchView;
 import com.ledgerlens.dto.ReconcileSummary;
+import com.ledgerlens.dto.WaterfallStep;
 import com.ledgerlens.service.ReconciliationService;
+import com.ledgerlens.service.WaterfallService;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.web.PageableDefault;
@@ -12,6 +14,7 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+import java.util.List;
 import java.util.UUID;
 
 @RestController
@@ -19,9 +22,11 @@ import java.util.UUID;
 public class ReconcileController {
 
     private final ReconciliationService reconciliationService;
+    private final WaterfallService waterfallService;
 
-    public ReconcileController(ReconciliationService reconciliationService) {
+    public ReconcileController(ReconciliationService reconciliationService, WaterfallService waterfallService) {
         this.reconciliationService = reconciliationService;
+        this.waterfallService = waterfallService;
     }
 
     @PostMapping("/{batchId}")
@@ -32,6 +37,11 @@ public class ReconcileController {
     @GetMapping("/{batchId}/summary")
     public ReconcileSummary summary(@PathVariable UUID batchId) {
         return reconciliationService.summary(batchId);
+    }
+
+    @GetMapping("/{batchId}/waterfall")
+    public List<WaterfallStep> waterfall(@PathVariable UUID batchId) {
+        return waterfallService.waterfall(batchId);
     }
 
     @GetMapping("/{batchId}/matches")
