@@ -6,3 +6,5 @@ node_modules/
 .vscode/
 data/large/
 application.yml
+dist/
+*.tsbuildinfo

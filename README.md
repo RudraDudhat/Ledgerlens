@@ -2,13 +2,263 @@
 
 Explains every rupee between what you sold and what hit your bank.
 
-ledgerlens is an AI Finance Controller agent for Indian merchants using Razorpay. It reconciles three inputs — the merchant's order export, the Razorpay settlement report, and the bank statement — then:
+An AI Finance Controller for Indian merchants on Razorpay. It reconciles three files — the order
+export, the Razorpay settlement report, the bank statement — then explains the gap between sales and
+money received as a waterfall, lists what it could not match as typed exceptions with reasons and
+confidence, forecasts what is still coming, and answers questions grounded in the rows themselves.
 
-- explains every rupee of difference between "sales" and "money received in bank" as a waterfall,
-- lists unmatched records as exceptions with reasons and confidence,
-- forecasts upcoming settlements,
-- answers plain-English questions grounded in the reconciled rows.
+---
 
-Stack: Java 21 / Spring Boot 3 / PostgreSQL 16 backend, Spring AI (Anthropic), React 18 + Vite frontend, Docker Compose runtime.
+## Measured results
 
-Status: work in progress. The full README — measured metrics table first (match rate, precision/recall per exception type, calibration), architecture diagram, setup instructions, and a "What it gets wrong" section — lands with the v1.0-submission milestone.
+Everything below is produced by the test suite on the committed 300-order batch
+(`data/`, seed 42), not by hand. Reproduce with `mvn test` in `backend/`.
+
+### Matching
+
+| metric | value |
+| --- | --- |
+| Orders in batch | 300 |
+| Orders matched to a settlement line | 276 |
+| **Match rate** | **92.00%** |
+| Clean-record share (the floor it must beat) | 88.00% |
+| Settlements matched to a bank credit | 21 of 24 |
+| Bank credits left unclaimed | 3 |
+
+The 8% gap is entirely the 15 failed payments and 9 dispute-held payments, which are legitimately
+absent from the settlement report. No rule invents a match for them.
+
+### Exception detection
+
+Scored against `answer_key.json`, joined on entity reference — an order id for order-level findings,
+a UTR for bank-level ones — so a finding of the right type against the wrong record would cost both
+precision and recall.
+
+| status | injected | detected | precision | recall | F1 |
+| --- | --- | --- | --- | --- | --- |
+| PAYMENT_FAILED | 15 | 15 | 1.0000 | 1.0000 | 1.0000 |
+| HELD_DISPUTE | 9 | 9 | 1.0000 | 1.0000 | 1.0000 |
+| REFUND_PRIOR_CYCLE | 17 | 17 | 1.0000 | 1.0000 | 1.0000 |
+| BANK_MISSING | 3 | 3 | 1.0000 | 1.0000 | 1.0000 |
+| BANK_DUPLICATE | 3 | 3 | 1.0000 | 1.0000 | 1.0000 |
+| AMOUNT_MISMATCH | 3 | 3 | 1.0000 | 1.0000 | 1.0000 |
+| UNKNOWN | 0 | 0 | — | — | — |
+| **overall** | **50** | **50** | **1.0000** | **1.0000** | **1.0000** |
+
+**Read these as a statement about the data, not about reconciliation being solved.** Every anomaly
+this generator injects is directly observable in the three files, so a correct rule finds all of
+them. The number actually worth watching is UNKNOWN at zero: nothing in the batch was left
+unexplained or quietly absorbed. See [What it gets wrong](#what-it-gets-wrong).
+
+### Calibration
+
+| confidence bucket | findings | mean confidence | observed accuracy |
+| --- | --- | --- | --- |
+| 0.70 – 0.90 | 5 | 0.8500 | 1.0000 |
+| 0.90 – 1.00 | 45 | 0.9900 | 1.0000 |
+
+The detector is **under-confident**, not over-confident: the five pre-window refunds are stamped
+0.85 and all five are right. That is the safer direction to be wrong in, and it is left uncorrected
+rather than tuned to look better.
+
+### Waterfall and forecast
+
+The waterfall closes **exactly**, asserted with `isEqualByComparingTo` against the ingested bank
+statement rather than a tolerance:
+
+```
+  Gross sales                        1,554,691.47
+− Failed payments                       86,606.98
+− Razorpay fees                         13,967.30
+− GST on fees                            2,514.12
+− Held for disputes                     48,069.24
+− Refunds                               76,027.33
+                                  ───────────────
+  Settled by Razorpay                1,327,506.50
+− Settlements not credited by bank     108,557.71
++ Unmatched bank credits               226,173.90
++ Bank amount differences                   33.00
+                                  ───────────────
+  Bank credits                       1,445,155.69   ✓ to the rupee
+```
+
+The forecast reproduces all three injected dispute-release dates exactly — 2026-09-02 ₹608.29
+WALLET, 2026-09-03 ₹4,104.75 UPI, 2026-09-04 ₹5,816.99 UPI — including the per-method split.
+
+### Suite
+
+93 backend tests, 0 failures. Generating the 300-order batch takes 172 ms.
+
+---
+
+## Architecture
+
+```mermaid
+flowchart LR
+  subgraph inputs[Inputs]
+    O[orders.csv]
+    S[razorpay_settlement.csv]
+    B[bank_statement.csv]
+    RZP[(Razorpay API<br/>test mode)]
+  end
+
+  O --> ING[CsvIngestService]
+  S --> ING
+  B --> ING
+  RZP --> RING[RazorpayIngestService]
+
+  ING --> DB[(PostgreSQL<br/>schema.sql, no migrations)]
+  RING --> DB
+
+  DB --> MATCH[DeterministicMatcher<br/>order id + amount, then UTR + date window]
+  MATCH --> RULES[Rules engine<br/>FeeSchedule · SettlementCalendar · DisputeHolds]
+  RULES --> EXC[ExceptionDetectionService]
+  EXC -->|only what rules could not resolve| CLS[ExceptionClassifier<br/>gemini-2.5-flash]
+
+  RULES --> WF[WaterfallService]
+  RULES --> FC[ForecastService]
+  EXC --> MET[MetricsService<br/>vs answer_key.json]
+
+  WF --> NAR[WaterfallNarrator]
+  DB --> QA[QuestionAnswerer<br/>SQL retrieval, refuses if no rows]
+
+  CLS --> AUD[(audit_log<br/>append-only trigger)]
+  NAR --> AUD
+  QA --> AUD
+  MATCH --> AUD
+
+  WF --> UI[React 18 + Vite]
+  FC --> UI
+  MET --> UI
+  EXC --> UI
+```
+
+Deterministic rules run first and settle everything they can. The model is called only for what is
+left, and never computes a number: it classifies leftovers, narrates a finished waterfall, and
+answers from rows already retrieved by query. Every model call is written to `audit_log` with the
+prompt hash, model, latency and output.
+
+**Backend package layout** is conventional layered Spring: `entity`, `repository`, `service`,
+`controller`, `dto`, plus `rules` for the domain arithmetic and `runner` for the generator's CLI
+entry point. Dependencies point inward; nothing in `entity` or `repository` imports from `dto` or
+`controller`.
+
+---
+
+## Setup
+
+### Everything at once
+
+```bash
+docker compose up --build
+```
+
+Backend on `:8080`, frontend on `:5173`, Postgres on `:5432`. Both API keys are optional — see
+[Running without keys](#running-without-keys).
+
+### Backend on its own
+
+```bash
+docker compose up -d postgres
+cd backend && cp src/main/resources/application-example.yml src/main/resources/application.yml
+mvn spring-boot:run
+```
+
+### Frontend on its own
+
+```bash
+cd frontend && npm install && npm run dev
+```
+
+`/api` is proxied to `localhost:8080`, and the committed batch in `data/` is served at `/sample/*`
+so the Upload screen's **Load sample data** works without copying files around.
+
+### Regenerating the synthetic batch
+
+```bash
+cd backend && mvn spring-boot:run -Dspring-boot.run.arguments="--spring.profiles.active=generate --count=300 --seed=42 --out=../data/"
+```
+
+Deterministic by seed: the same seed produces byte-identical files, which a test asserts. Larger
+runs belong in `data/large/`, which is gitignored.
+
+### Tests
+
+```bash
+cd backend && mvn test
+```
+
+Needs Docker running — Testcontainers starts a real PostgreSQL 16. No API key is needed; the AI
+layer is driven by a stubbed chat model.
+
+### Environment
+
+| variable | needed for | without it |
+| --- | --- | --- |
+| `GEMINI_API_KEY` | classifier, narrator, Q&A | those three endpoints return 503; everything else works |
+| `RAZORPAY_KEY_ID` / `RAZORPAY_KEY_SECRET` | `POST /api/ingest/razorpay` | that endpoint returns 503 naming the missing variables |
+
+#### Running without keys
+
+The app starts and reconciles fully with neither key set. CSV ingest, matching, the waterfall, the
+exception list, the metrics and the forecast are all deterministic and need no model.
+
+---
+
+## API
+
+| method | path | returns |
+| --- | --- | --- |
+| POST | `/api/ingest/csv` | batch id and per-table row counts |
+| POST | `/api/ingest/razorpay` | same, pulled from the test-mode API |
+| POST | `/api/reconcile/{batchId}` | runs matcher, rules and exception detection; returns the summary |
+| GET | `/api/reconcile/{batchId}/summary` | match rate, counts by status, totals |
+| GET | `/api/reconcile/{batchId}/waterfall` | ordered signed steps with source row ids |
+| GET | `/api/reconcile/{batchId}/narrative` | plain-English narration of the waterfall |
+| GET | `/api/reconcile/{batchId}/exceptions` | status, reason, confidence, source row ids |
+| GET | `/api/reconcile/{batchId}/matches` | paginated matched rows |
+| GET | `/api/forecast/{batchId}` | forward settlement calendar |
+| POST | `/api/ask/{batchId}` | `{answer, citedRowIds[]}` |
+| GET | `/api/metrics/{batchId}` | precision/recall per status plus calibration buckets |
+
+---
+
+## What it gets wrong
+
+Honest failure cases from the 300-order run and the design choices behind them.
+
+**Perfect precision and recall are a property of the synthetic data.** Every injected anomaly is
+directly observable in the three files. A real batch would contain ambiguity this one does not, and
+the scores would drop. Do not read 1.0000 as "solved".
+
+**HELD_DISPUTE is read from a column, not inferred.** The CSV contract is three files with no
+disputes export, so `orders.csv` carries `dispute_status` and `dispute_opened_at`. Detection is
+therefore trivially correct and its 1.0000 recall means very little. A real merchant would need a
+fourth file or the API path, and the API path does not fetch disputes at all.
+
+**The classifier never runs on the committed batch.** The rules leave zero UNKNOWNs, so the model is
+not invoked once. That is the architecture working as intended, but it means the classifier's
+accuracy is untested against real ambiguity — it is only exercised by a hand-built batch in
+`AiLayerTest` containing an unplaceable bank credit.
+
+**The generator constrains where anomalies can land.** Disputes are only opened on orders from the
+last 10 days of the window, so every disputed payment is still held at the cutoff; refunded orders
+come only from the first 21 days, so each refund reliably lands in a later cycle. Mid-window dispute
+resolution is not modelled at all, and a real batch would contain it.
+
+**Bank UTR recovery is deliberately conservative.** A UTR split across separators in the narration
+(`utr-2026 072801`) is *not* reassembled — gluing free-text tokens together is how a reconciler
+produces a confident wrong match. Such a row falls through to the amount-and-date check instead, and
+if that fails it is reported as unmatched rather than guessed.
+
+**The Razorpay path cannot complete a reconciliation.** Razorpay cannot see the merchant's bank
+account, so no bank rows are created and every settlement will look uncredited until a statement is
+supplied separately.
+
+**Unmatched bank credits are labelled BANK_DUPLICATE only when a UTR twin exists.** Anything else
+becomes UNKNOWN at 0.30 confidence. On a messier statement that bucket would be much larger.
+
+**Public holidays are ignored.** The settlement calendar skips Saturdays and Sundays only, so any
+batch spanning an Indian bank holiday will predict settlement dates a day or more early.
+
+**Desktop only.** The UI is built for ≥1280px and has no mobile layout.
