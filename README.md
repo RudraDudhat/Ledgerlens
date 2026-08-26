@@ -150,6 +150,7 @@ entry point. Dependencies point inward; nothing in `entity` or `repository` impo
 ### Everything at once
 
 ```bash
+cp .env.example .env      # then set POSTGRES_PASSWORD
 docker compose up --build
 ```
 
@@ -161,6 +162,7 @@ Backend on `:8080`, frontend on `:5173`, Postgres on `:5432`. Both API keys are 
 ```bash
 docker compose up -d postgres
 cd backend && cp src/main/resources/application-example.yml src/main/resources/application.yml
+set -a && source ../.env && set +a      # POSTGRES_PASSWORD has no default
 mvn spring-boot:run
 ```
 
@@ -193,15 +195,25 @@ layer is driven by a stubbed chat model.
 
 ### Environment
 
-| variable | needed for | without it |
-| --- | --- | --- |
-| `GEMINI_API_KEY` | classifier, narrator, Q&A | those three endpoints return 503; everything else works |
-| `RAZORPAY_KEY_ID` / `RAZORPAY_KEY_SECRET` | `POST /api/ingest/razorpay` | that endpoint returns 503 naming the missing variables |
+Every value the app reads comes from the environment; nothing is hardcoded. Copy `.env.example` to
+`.env` and fill it in — `.env` is gitignored, `.env.example` never holds a real value.
+
+| variable | required | needed for | without it |
+| --- | --- | --- | --- |
+| `POSTGRES_PASSWORD` | **yes** | the database | compose refuses to start and the backend fails to connect. There is no fallback on purpose |
+| `POSTGRES_DB` | no | database name | defaults to `ledgerlens` |
+| `POSTGRES_USER` | no | database user | defaults to `ledgerlens` |
+| `POSTGRES_HOST` / `POSTGRES_PORT` | no | pointing at a database compose did not start | default to `localhost:5432`; compose sets them itself |
+| `GEMINI_API_KEY` | no | classifier, narrator, Ask | those three endpoints return 503; everything else works |
+| `GEMINI_MODEL` | no | choosing a different model | defaults to `gemini-2.5-flash` |
+| `RAZORPAY_KEY_ID` / `RAZORPAY_KEY_SECRET` | no | `POST /api/ingest/razorpay` | that endpoint returns 503 naming the missing variables; CSV ingest is unaffected |
+| `LEDGERLENS_ANSWER_KEY_PATH` | no | scoring `/api/metrics` against ground truth | defaults to `data/answer_key.json`; compose mounts `./data` read-only at `/app/data` |
+| `BACKEND_PORT` / `FRONTEND_PORT` | no | avoiding a port clash | default to `8080` and `5173` |
 
 #### Running without keys
 
-The app starts and reconciles fully with neither key set. CSV ingest, matching, the waterfall, the
-exception list, the metrics and the forecast are all deterministic and need no model.
+The app starts and reconciles fully with neither API key set. CSV ingest, matching, the waterfall,
+the exception list, the metrics and the forecast are all deterministic and need no model.
 
 ---
 
