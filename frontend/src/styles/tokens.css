@@ -1,0 +1,61 @@
+/*
+ * One accent plus four semantics, and nothing else. The semantics mean the same thing everywhere
+ * they appear — a table badge, a waterfall bar and a forecast card all use `received` for money that
+ * reached the bank — so the palette is learned once and then read without a legend.
+ *
+ *   received  money that arrived, or is expected to
+ *   held      money withheld for now: disputes, settlements not yet credited
+ *   lost      money that will never arrive: failed payments, refunds
+ *   fees      what the gateway and the tax took
+ */
+:root {
+  color-scheme: light;
+
+  --surface: #fbfbfd;
+  --surface-raised: #ffffff;
+  --line: #e6e6ec;
+  --ink: #16161d;
+  --ink-muted: #5b5b6b;
+  --ink-faint: #8f8fa3;
+
+  --accent: #3d5afe;
+  --accent-soft: #eaeeff;
+
+  --received: #0f7b6c;
+  --received-soft: #e2f3f0;
+  --held: #b26a00;
+  --held-soft: #fdf1de;
+  --lost: #c0392b;
+  --lost-soft: #fbeae8;
+  --fees: #6b46c1;
+  --fees-soft: #f0eafc;
+
+  --shadow: 0 1px 2px rgb(22 22 29 / 6%), 0 8px 24px rgb(22 22 29 / 6%);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    color-scheme: dark;
+
+    --surface: #0e0e13;
+    --surface-raised: #17171f;
+    --line: #26262f;
+    --ink: #ececf2;
+    --ink-muted: #a0a0b2;
+    --ink-faint: #6f6f82;
+
+    --accent: #8a9dff;
+    --accent-soft: #1c2140;
+
+    --received: #4ec9b0;
+    --received-soft: #12352f;
+    --held: #e2a33c;
+    --held-soft: #3a2b12;
+    --lost: #f0796b;
+    --lost-soft: #3a1c19;
+    --fees: #b294f5;
+    --fees-soft: #2a2140;
+
+    --shadow: 0 1px 2px rgb(0 0 0 / 40%), 0 8px 24px rgb(0 0 0 / 32%);
+  }
+}
