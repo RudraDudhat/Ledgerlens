@@ -6,6 +6,7 @@ import { Skeleton, SkeletonCards } from '../components/Skeleton'
 import { ErrorState } from '../components/States'
 import { rupees, signedRupees } from '../lib/format'
 import { BAR_STAGGER_SECONDS, pageTransition, usePrefersReducedMotion } from '../lib/motion'
+import { pendingNarrative, retryNarrative } from '../lib/narrative'
 
 type Plotted = WaterfallStep & { base: number; magnitude: number; running: number; color: string }
 
@@ -45,6 +46,14 @@ export function Waterfall({
     setNarrativeError(null)
     setError(null)
 
+    // Read-only: whatever Reconcile started. Opening this screen never begins a model call.
+    const started = pendingNarrative(batchId)
+    if (started) {
+      started.then((text) => !cancelled && setNarrative(text)).catch((error) => !cancelled && setNarrativeError(error))
+    } else {
+      setNarrativeError(new Error('No explanation was generated for this batch.'))
+    }
+
     Promise.all([api.waterfall(batchId), api.summary(batchId)])
       .then(([loadedSteps, summary]) => {
         if (cancelled) return
@@ -53,16 +62,21 @@ export function Waterfall({
       })
       .catch((loadError) => !cancelled && setError(loadError))
 
-    // The narration is a separate call so a missing API key costs the numbers nothing.
-    api
-      .narrative(batchId)
-      .then((response) => !cancelled && setNarrative(response.narrative))
-      .catch((error) => !cancelled && setNarrativeError(error))
 
     return () => {
       cancelled = true
     }
   }, [batchId])
+
+
+  /** The only path that spends a second call, and only because someone asked for it. */
+  function retry() {
+    setNarrative(null)
+    setNarrativeError(null)
+    retryNarrative(batchId)
+      .then(setNarrative)
+      .catch(setNarrativeError)
+  }
 
   const plotted = useMemo<Plotted[]>(() => {
     if (!steps) return []
@@ -189,21 +203,29 @@ export function Waterfall({
         className="card w-[320px] shrink-0 self-start p-5"
       >
         <h2 className="text-sm font-semibold">What happened</h2>
+
         {narrative === null && narrativeError == null && <Skeleton className="mt-3 h-28 w-full" />}
-        {narrative && <NarrativeText text={narrative} onOpenRows={onOpenRows} />}
+
+        {narrative !== null && <NarrativeText text={narrative} onOpenRows={onOpenRows} />}
+
         {narrativeError != null && (
           <div className="mt-3">
             <p className="text-xs" style={{ color: 'var(--ink-muted)' }}>
               No narration: the numbers above are unaffected.
             </p>
-            <button
-              type="button"
-              onClick={() => onAskAbout('Explain the difference between sales and bank credits.')}
-              className="mt-3 text-xs underline"
-              style={{ color: 'var(--accent)' }}
-            >
-              Ask instead
-            </button>
+            <div className="mt-3 flex gap-3">
+              <button type="button" onClick={retry} className="text-xs underline" style={{ color: 'var(--accent)' }}>
+                Try again
+              </button>
+              <button
+                type="button"
+                onClick={() => onAskAbout('Explain the difference between sales and bank credits.')}
+                className="text-xs underline"
+                style={{ color: 'var(--accent)' }}
+              >
+                Ask instead
+              </button>
+            </div>
           </div>
         )}
       </motion.aside>

@@ -4,6 +4,7 @@ import { api, loadSampleFiles } from '../api/client'
 import { StepProgress, type StepState } from '../components/StepProgress'
 import { ErrorState } from '../components/States'
 import { pageTransition } from '../lib/motion'
+import { prefetchNarrative } from '../lib/narrative'
 
 type ZoneKey = 'orders' | 'settlement' | 'bank'
 
@@ -87,6 +88,9 @@ export function Upload({ onReconciled }: { onReconciled: (batchId: string) => vo
         { label: 'Rules', state: 'done' },
         { label: 'Exceptions', state: 'done' },
       ])
+      // Started here, not on the Waterfall, so opening that screen never spends a model call.
+      // Deliberately not awaited: the narration takes about ten seconds and the numbers do not.
+      prefetchNarrative(ingested.batchId)
       onReconciled(ingested.batchId)
     } catch (reconcileError) {
       setError(reconcileError)
