@@ -49,6 +49,7 @@ public class ReconciliationService {
     private final AuditLogRepository auditLogRepository;
     private final ExceptionRecordRepository exceptionRepository;
     private final ExceptionDetectionService exceptionDetectionService;
+    private final ExceptionClassifier exceptionClassifier;
     private final DeterministicMatcher matcher;
 
     public ReconciliationService(IngestBatchRepository ingestBatchRepository,
@@ -60,6 +61,7 @@ public class ReconciliationService {
                                  AuditLogRepository auditLogRepository,
                                  ExceptionRecordRepository exceptionRepository,
                                  ExceptionDetectionService exceptionDetectionService,
+                                 ExceptionClassifier exceptionClassifier,
                                  DeterministicMatcher matcher) {
         this.ingestBatchRepository = ingestBatchRepository;
         this.orderRepository = orderRepository;
@@ -70,6 +72,7 @@ public class ReconciliationService {
         this.auditLogRepository = auditLogRepository;
         this.exceptionRepository = exceptionRepository;
         this.exceptionDetectionService = exceptionDetectionService;
+        this.exceptionClassifier = exceptionClassifier;
         this.matcher = matcher;
     }
 
@@ -88,6 +91,7 @@ public class ReconciliationService {
         matchRepository.saveAll(matches);
         matchRepository.flush();
         exceptionDetectionService.detect(batchId);
+        exceptionClassifier.classifyUnresolved(batchId);
 
         ReconcileSummary summary = buildSummary(batchId, orders, settlements, bankEntries, matches);
         auditLogRepository.save(auditEntry(batchId, summary));
