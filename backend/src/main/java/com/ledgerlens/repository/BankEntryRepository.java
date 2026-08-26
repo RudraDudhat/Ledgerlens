@@ -11,4 +11,8 @@ public interface BankEntryRepository extends JpaRepository<BankEntry, Long> {
     List<BankEntry> findByBatchIdOrderById(UUID batchId);
 
     long countByBatchId(UUID batchId);
+
+    List<BankEntry> findByBatchIdAndEntryDate(UUID batchId, java.time.LocalDate entryDate);
+
+    List<BankEntry> findByBatchIdAndAmount(UUID batchId, java.math.BigDecimal amount);
 }

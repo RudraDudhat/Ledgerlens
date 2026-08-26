@@ -11,4 +11,8 @@ public interface SettlementBatchRepository extends JpaRepository<SettlementBatch
     List<SettlementBatch> findByBatchIdOrderBySettledOn(UUID batchId);
 
     long countByBatchId(UUID batchId);
+
+    List<SettlementBatch> findByBatchIdAndUtr(UUID batchId, String utr);
+
+    List<SettlementBatch> findByBatchIdAndSettledOn(UUID batchId, java.time.LocalDate settledOn);
 }

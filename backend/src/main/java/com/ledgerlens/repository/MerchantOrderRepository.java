@@ -11,4 +11,8 @@ public interface MerchantOrderRepository extends JpaRepository<MerchantOrder, Lo
     List<MerchantOrder> findByBatchIdOrderById(UUID batchId);
 
     long countByBatchId(UUID batchId);
+
+    List<MerchantOrder> findByBatchIdAndOrderId(UUID batchId, String orderId);
+
+    List<MerchantOrder> findByBatchIdAndAmount(UUID batchId, java.math.BigDecimal amount);
 }

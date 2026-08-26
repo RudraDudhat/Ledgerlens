@@ -15,6 +15,8 @@ public interface ExceptionRecordRepository extends JpaRepository<ExceptionRecord
 
     long countByBatchId(UUID batchId);
 
+    List<ExceptionRecord> findByBatchIdAndEntityRef(UUID batchId, String entityRef);
+
     @Modifying
     @Query("delete from ExceptionRecord e where e.batchId = :batchId")
     void deleteByBatchId(@Param("batchId") UUID batchId);
