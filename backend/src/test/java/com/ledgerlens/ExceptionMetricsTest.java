@@ -1,6 +1,7 @@
 package com.ledgerlens;
 
 import com.ledgerlens.dto.AnswerKey;
+import com.ledgerlens.dto.CalibrationBucket;
 import com.ledgerlens.dto.ExceptionView;
 import com.ledgerlens.dto.MetricsReport;
 import com.ledgerlens.dto.ReconcileSummary;
@@ -205,6 +206,30 @@ class ExceptionMetricsTest {
 
         mockMvc.perform(get("/api/metrics/" + UUID.randomUUID()))
                 .andExpect(status().isNotFound());
+    }
+
+    @Test
+    void calibrationBucketsShowWhetherStatedConfidenceIsEarned() throws IOException {
+        MetricsReport report = metricsService.metrics(reconciledBatch());
+
+        assertThat(report.calibration()).hasSize(4);
+        assertThat(report.calibration()).allSatisfy(bucket -> {
+            assertThat(bucket.correct()).isLessThanOrEqualTo(bucket.count());
+            if (bucket.count() == 0) {
+                assertThat(bucket.observedAccuracy()).isNull();
+            } else {
+                assertThat(bucket.observedAccuracy()).isBetween(BigDecimal.ZERO, BigDecimal.ONE);
+                assertThat(bucket.meanConfidence()).isBetween(bucket.lowerBound(), bucket.upperBound());
+            }
+        });
+        assertThat(report.calibration().stream().mapToInt(CalibrationBucket::count).sum())
+                .as("every finding lands in exactly one bucket")
+                .isEqualTo(report.detectedCount());
+
+        report.calibration().stream().filter(bucket -> bucket.count() > 0).forEach(bucket ->
+                System.out.printf("calibration [%s,%s] n=%d meanConfidence=%s observedAccuracy=%s%n",
+                        bucket.lowerBound(), bucket.upperBound(), bucket.count(),
+                        bucket.meanConfidence(), bucket.observedAccuracy()));
     }
 
     private UUID reconciledBatch() throws IOException {
