@@ -108,6 +108,7 @@ function hintFor(status: number): string {
   if (status === 404) return 'That batch no longer exists. Upload the three files again.'
   if (status === 503) return 'This feature needs an API key. Set GEMINI_API_KEY and restart the backend.'
   if (status === 400) return 'Check the values you sent and try again.'
+  if (status === 502) return 'The model rejected the request. Check GEMINI_API_KEY and the backend logs.'
   return 'Try again, and check the backend logs if it keeps failing.'
 }
 

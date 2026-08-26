@@ -67,7 +67,14 @@ public class LlmGateway {
                     "no chat model is configured; set GEMINI_API_KEY to enable this");
         }
         long startedAt = System.nanoTime();
-        String output = model.call(new Prompt(prompt)).getResult().getOutput().getText();
+        String output;
+        try {
+            output = model.call(new Prompt(prompt)).getResult().getOutput().getText();
+        } catch (RuntimeException e) {
+            // An upstream failure is not a fault in this service, and a bare 500 tells nobody anything.
+            throw new ResponseStatusException(HttpStatus.BAD_GATEWAY,
+                    "the model could not be reached: " + rootMessage(e), e);
+        }
         Duration elapsed = Duration.ofNanos(System.nanoTime() - startedAt);
         record(batchId, action, prompt, output, elapsed);
         return output == null ? "" : output;
@@ -95,6 +102,16 @@ public class LlmGateway {
         entry.setDetail("model=%s promptSha256=%s latencyMs=%d output=%s"
                 .formatted(modelName, sha256(prompt), elapsed.toMillis(), truncate(output)));
         auditLogRepository.save(entry);
+    }
+
+    /** The useful sentence is usually at the bottom of the cause chain, not the top. */
+    private static String rootMessage(Throwable error) {
+        Throwable cause = error;
+        while (cause.getCause() != null && cause.getCause() != cause) {
+            cause = cause.getCause();
+        }
+        String message = cause.getMessage();
+        return message == null || message.isBlank() ? cause.getClass().getSimpleName() : message;
     }
 
     private static String truncate(String output) {
