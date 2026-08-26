@@ -1,41 +1,58 @@
+# Every value comes from .env (copy .env.example). Nothing here carries a credential of its own:
+# POSTGRES_PASSWORD has no fallback on purpose, so a missing .env fails loudly instead of silently
+# starting a database with a guessable password.
 services:
   postgres:
     image: postgres:16
     environment:
-      POSTGRES_DB: ledgerlens
-      POSTGRES_USER: ledgerlens
-      POSTGRES_PASSWORD: ledgerlens
+      POSTGRES_DB: ${POSTGRES_DB:-ledgerlens}
+      POSTGRES_USER: ${POSTGRES_USER:-ledgerlens}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}
     ports:
-      - "5432:5432"
+      - "${POSTGRES_PORT:-5432}:5432"
     volumes:
       - pgdata:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ledgerlens -d ledgerlens"]
+      test:
+        ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-ledgerlens} -d ${POSTGRES_DB:-ledgerlens}"]
       interval: 5s
       timeout: 3s
       retries: 10
 
   backend:
-    build: ./backend
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
     depends_on:
       postgres:
         condition: service_healthy
     environment:
-      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/ledgerlens
-      SPRING_DATASOURCE_USERNAME: ledgerlens
-      SPRING_DATASOURCE_PASSWORD: ledgerlens
+      POSTGRES_HOST: postgres
+      POSTGRES_PORT: 5432
+      POSTGRES_DB: ${POSTGRES_DB:-ledgerlens}
+      POSTGRES_USER: ${POSTGRES_USER:-ledgerlens}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}
       GEMINI_API_KEY: ${GEMINI_API_KEY:-}
+      GEMINI_MODEL: ${GEMINI_MODEL:-gemini-2.5-flash}
       RAZORPAY_KEY_ID: ${RAZORPAY_KEY_ID:-}
       RAZORPAY_KEY_SECRET: ${RAZORPAY_KEY_SECRET:-}
+      LEDGERLENS_ANSWER_KEY_PATH: ${LEDGERLENS_ANSWER_KEY_PATH:-/app/data/answer_key.json}
+    volumes:
+      # Read-only: the answer key is ground truth for /api/metrics and must not be writable.
+      - ./data:/app/data:ro
     ports:
-      - "8080:8080"
+      - "${BACKEND_PORT:-8080}:8080"
 
   frontend:
-    build: ./frontend
+    build:
+      context: .
+      dockerfile: frontend/Dockerfile
     depends_on:
       - backend
+    environment:
+      API_URL: http://backend:8080
     ports:
-      - "5173:5173"
+      - "${FRONTEND_PORT:-5173}:5173"
 
 volumes:
   pgdata:

@@ -1,10 +1,11 @@
-# Copy this file to application.yml (application.yml is gitignored) and adjust values.
-# No secrets belong in either file: API keys are read from environment variables only.
+# Copy this file to application.yml (application.yml is gitignored) and adjust if you need to.
+# No credentials live here: every value below is read from the environment, and the defaults are
+# local-development conveniences only. Real secrets belong in .env, which is gitignored.
 spring:
   datasource:
-    url: jdbc:postgresql://localhost:5432/ledgerlens
-    username: ledgerlens
-    password: ledgerlens
+    url: jdbc:postgresql://${POSTGRES_HOST:localhost}:${POSTGRES_PORT:5432}/${POSTGRES_DB:ledgerlens}
+    username: ${POSTGRES_USER:ledgerlens}
+    password: ${POSTGRES_PASSWORD}
   jpa:
     hibernate:
       ddl-auto: validate
@@ -20,10 +21,10 @@ spring:
         api-key: ${GEMINI_API_KEY:unset}
         chat:
           options:
-            model: gemini-2.5-flash
+            model: ${GEMINI_MODEL:gemini-2.5-flash}
             temperature: 0.0
 
 ledgerlens:
   # Ground truth for /api/metrics/{batchId}. Scores are omitted when this file is absent,
   # which is the normal case for a real merchant batch.
-  answer-key-path: data/answer_key.json
+  answer-key-path: ${LEDGERLENS_ANSWER_KEY_PATH:data/answer_key.json}
