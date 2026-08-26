@@ -3,11 +3,12 @@ import { useCallback, useState } from 'react'
 import { AskPanel } from './components/AskPanel'
 import { Drawer, type DrawerSubject } from './components/Drawer'
 import { Forecast } from './screens/Forecast'
+import { Landing } from './screens/Landing'
 import { Reconciliation, type Row } from './screens/Reconciliation'
 import { Upload } from './screens/Upload'
 import { Waterfall } from './screens/Waterfall'
 
-type Screen = 'upload' | 'reconciliation' | 'waterfall' | 'forecast'
+type Screen = 'landing' | 'upload' | 'reconciliation' | 'waterfall' | 'forecast'
 
 const SCREENS: { key: Screen; label: string; step: number }[] = [
   { key: 'upload', label: 'Upload', step: 1 },
@@ -17,7 +18,7 @@ const SCREENS: { key: Screen; label: string; step: number }[] = [
 ]
 
 export default function App() {
-  const [screen, setScreen] = useState<Screen>('upload')
+  const [screen, setScreen] = useState<Screen>('landing')
   const [batchId, setBatchId] = useState<string | null>(null)
   const [drawer, setDrawer] = useState<DrawerSubject | null>(null)
   const [askOpen, setAskOpen] = useState(false)
@@ -36,15 +37,19 @@ export default function App() {
     setDrawer(null)
   }, [])
 
+  if (screen === 'landing') {
+    return <Landing onStart={() => setScreen('upload')} />
+  }
+
   return (
     <div className="flex h-screen min-w-[1280px]">
       <nav className="flex w-56 shrink-0 flex-col border-r px-3 py-6" style={{ borderColor: 'var(--line)' }}>
-        <div className="px-3">
+        <button type="button" onClick={() => setScreen('landing')} className="px-3 text-left">
           <p className="text-sm font-semibold">ledgerlens</p>
           <p className="mt-1 text-xs leading-snug" style={{ color: 'var(--ink-faint)' }}>
             Every rupee between what you sold and what hit your bank.
           </p>
-        </div>
+        </button>
 
         <ul className="mt-8 space-y-1">
           {SCREENS.map((item) => {
