@@ -21,7 +21,7 @@ spring:
         api-key: ${GEMINI_API_KEY:unset}
         chat:
           options:
-            model: ${GEMINI_MODEL:gemini-2.5-flash}
+            model: ${GEMINI_MODEL:gemini-3.6-flash}
             temperature: 0.0
 
 ledgerlens:

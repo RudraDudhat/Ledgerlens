@@ -47,7 +47,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 @SpringBootTest(properties = {
         "spring.ai.model.chat=none",
         "spring.ai.google.genai.api-key=stub-key-never-sent",
-        "spring.ai.google.genai.chat.options.model=gemini-2.5-flash",
+        "spring.ai.google.genai.chat.options.model=gemini-3.6-flash",
         "ledgerlens.answer-key-path=../data/answer_key.json"
 })
 @Import(AiLayerTest.StubChatModelConfiguration.class)
@@ -231,7 +231,7 @@ class AiLayerTest {
                 .toList();
         assertThat(narrations).hasSize(1);
         assertThat(narrations.get(0).getDetail())
-                .contains("model=gemini-2.5-flash")
+                .contains("model=gemini-3.6-flash")
                 .contains("promptSha256=")
                 .contains("latencyMs=")
                 .contains("output=A short narration.");

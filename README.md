@@ -113,7 +113,7 @@ flowchart LR
   DB --> MATCH[DeterministicMatcher<br/>order id + amount, then UTR + date window]
   MATCH --> RULES[Rules engine<br/>FeeSchedule · SettlementCalendar · DisputeHolds]
   RULES --> EXC[ExceptionDetectionService]
-  EXC -->|only what rules could not resolve| CLS[ExceptionClassifier<br/>gemini-2.5-flash]
+  EXC -->|only what rules could not resolve| CLS[ExceptionClassifier<br/>gemini-3.6-flash]
 
   RULES --> WF[WaterfallService]
   RULES --> FC[ForecastService]
@@ -205,7 +205,7 @@ Every value the app reads comes from the environment; nothing is hardcoded. Copy
 | `POSTGRES_USER` | no | database user | defaults to `ledgerlens` |
 | `POSTGRES_HOST` / `POSTGRES_PORT` | no | pointing at a database compose did not start | default to `localhost:5432`; compose sets them itself |
 | `GEMINI_API_KEY` | no | classifier, narrator, Ask | those three endpoints return 503; everything else works |
-| `GEMINI_MODEL` | no | choosing a different model | defaults to `gemini-2.5-flash` |
+| `GEMINI_MODEL` | no | choosing a different model | defaults to `gemini-3.6-flash` |
 | `RAZORPAY_KEY_ID` / `RAZORPAY_KEY_SECRET` | no | `POST /api/ingest/razorpay` | that endpoint returns 503 naming the missing variables; CSV ingest is unaffected |
 | `LEDGERLENS_ANSWER_KEY_PATH` | no | scoring `/api/metrics` against ground truth | defaults to `data/answer_key.json`; compose mounts `./data` read-only at `/app/data` |
 | `BACKEND_PORT` / `FRONTEND_PORT` | no | avoiding a port clash | default to `8080` and `5173` |
