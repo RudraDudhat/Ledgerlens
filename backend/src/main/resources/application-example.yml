@@ -12,6 +12,16 @@ spring:
   sql:
     init:
       mode: always
+  ai:
+    google:
+      genai:
+        # Without GEMINI_API_KEY the chat model is simply absent: reconciliation, the waterfall and
+        # the metrics all still work, and only the three AI endpoints refuse.
+        api-key: ${GEMINI_API_KEY:unset}
+        chat:
+          options:
+            model: gemini-2.5-flash
+            temperature: 0.0
 
 ledgerlens:
   # Ground truth for /api/metrics/{batchId}. Scores are omitted when this file is absent,
