@@ -15,6 +15,8 @@ public record ExceptionView(
         String entityRef,
         String reason,
         BigDecimal confidence,
+        BigDecimal amount,
+        String method,
         String origin,
         List<Long> sourceRowIds) {
 }

@@ -11,6 +11,7 @@ public record MatchView(
         Long id,
         String matchType,
         String orderId,
+        String method,
         String utr,
         BigDecimal amount,
         LocalDate settledOn,

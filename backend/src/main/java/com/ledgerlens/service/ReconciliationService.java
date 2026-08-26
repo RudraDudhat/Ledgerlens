@@ -3,18 +3,20 @@ package com.ledgerlens.service;
 import com.ledgerlens.dto.ExceptionView;
 import com.ledgerlens.dto.MatchView;
 import com.ledgerlens.dto.ReconcileSummary;
-import com.ledgerlens.entity.ExceptionStatus;
-import com.ledgerlens.repository.ExceptionRecordRepository;
 import com.ledgerlens.entity.AuditLog;
-import com.ledgerlens.repository.AuditLogRepository;
 import com.ledgerlens.entity.BankEntry;
-import com.ledgerlens.repository.BankEntryRepository;
-import com.ledgerlens.repository.IngestBatchRepository;
+import com.ledgerlens.entity.ExceptionStatus;
 import com.ledgerlens.entity.MatchRecord;
-import com.ledgerlens.repository.MatchRecordRepository;
 import com.ledgerlens.entity.MerchantOrder;
-import com.ledgerlens.repository.MerchantOrderRepository;
+import com.ledgerlens.entity.Payment;
 import com.ledgerlens.entity.SettlementBatch;
+import com.ledgerlens.repository.AuditLogRepository;
+import com.ledgerlens.repository.BankEntryRepository;
+import com.ledgerlens.repository.ExceptionRecordRepository;
+import com.ledgerlens.repository.IngestBatchRepository;
+import com.ledgerlens.repository.MatchRecordRepository;
+import com.ledgerlens.repository.MerchantOrderRepository;
+import com.ledgerlens.repository.PaymentRepository;
 import com.ledgerlens.repository.SettlementBatchRepository;
 import com.ledgerlens.repository.SettlementLineRepository;
 import org.springframework.data.domain.Page;
@@ -42,6 +44,7 @@ public class ReconciliationService {
 
     private final IngestBatchRepository ingestBatchRepository;
     private final MerchantOrderRepository orderRepository;
+    private final PaymentRepository paymentRepository;
     private final SettlementLineRepository settlementLineRepository;
     private final SettlementBatchRepository settlementBatchRepository;
     private final BankEntryRepository bankEntryRepository;
@@ -54,6 +57,7 @@ public class ReconciliationService {
 
     public ReconciliationService(IngestBatchRepository ingestBatchRepository,
                                  MerchantOrderRepository orderRepository,
+                                 PaymentRepository paymentRepository,
                                  SettlementLineRepository settlementLineRepository,
                                  SettlementBatchRepository settlementBatchRepository,
                                  BankEntryRepository bankEntryRepository,
@@ -65,6 +69,7 @@ public class ReconciliationService {
                                  DeterministicMatcher matcher) {
         this.ingestBatchRepository = ingestBatchRepository;
         this.orderRepository = orderRepository;
+        this.paymentRepository = paymentRepository;
         this.settlementLineRepository = settlementLineRepository;
         this.settlementBatchRepository = settlementBatchRepository;
         this.bankEntryRepository = bankEntryRepository;
@@ -111,15 +116,21 @@ public class ReconciliationService {
     @Transactional(readOnly = true)
     public List<ExceptionView> exceptions(UUID batchId) {
         requireBatch(batchId);
+        Map<String, Payment> paymentsByOrder = paymentsByOrderId(batchId);
         return exceptionRepository.findByBatchIdOrderById(batchId).stream()
-                .map(record -> new ExceptionView(
-                        record.getId(),
-                        record.getStatus().name(),
-                        record.getEntityRef(),
-                        record.getReason(),
-                        record.getConfidence(),
-                        record.getOrigin().name(),
-                        record.getSourceRowIds()))
+                .map(record -> {
+                    Payment payment = paymentsByOrder.get(record.getEntityRef());
+                    return new ExceptionView(
+                            record.getId(),
+                            record.getStatus().name(),
+                            record.getEntityRef(),
+                            record.getReason(),
+                            record.getConfidence(),
+                            payment == null ? null : payment.getAmount(),
+                            payment == null ? null : payment.getMethod().name(),
+                            record.getOrigin().name(),
+                            record.getSourceRowIds());
+                })
                 .toList();
     }
 
@@ -130,21 +141,30 @@ public class ReconciliationService {
         Map<Long, SettlementBatch> settlementsById =
                 byId(settlementBatchRepository.findByBatchIdOrderBySettledOn(batchId), SettlementBatch::getId);
         Map<Long, BankEntry> bankById = byId(bankEntryRepository.findByBatchIdOrderById(batchId), BankEntry::getId);
+        Map<String, Payment> paymentsByOrder = paymentsByOrderId(batchId);
 
         return matchRepository.findByBatchIdOrderById(batchId, pageable).map(match -> {
             MerchantOrder order = ordersById.get(match.getOrderRowId());
             SettlementBatch settlement = settlementsById.get(match.getSettlementBatchRowId());
             BankEntry bankEntry = bankById.get(match.getBankEntryRowId());
+            Payment payment = order == null ? null : paymentsByOrder.get(order.getOrderId());
             return new MatchView(
                     match.getId(),
                     match.getMatchType(),
                     order == null ? null : order.getOrderId(),
+                    payment == null ? null : payment.getMethod().name(),
                     settlement == null ? null : settlement.getUtr(),
                     match.getAmount(),
                     settlement == null ? null : settlement.getSettledOn(),
                     bankEntry == null ? null : bankEntry.getEntryDate(),
                     bankEntry == null ? null : bankEntry.getAmount());
         });
+    }
+
+    private Map<String, Payment> paymentsByOrderId(UUID batchId) {
+        Map<String, Payment> byOrder = new HashMap<>();
+        paymentRepository.findByBatchIdOrderById(batchId).forEach(payment -> byOrder.put(payment.getOrderId(), payment));
+        return byOrder;
     }
 
     private ReconcileSummary buildSummary(UUID batchId,
