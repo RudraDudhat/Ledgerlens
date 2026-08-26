@@ -31,6 +31,18 @@
         <type>pom</type>
         <scope>import</scope>
       </dependency>
+      <!-- razorpay-java pins okhttp 3.10, which predates the Duration timeouts google-genai calls.
+           3.14.9 is the last 3.x release and satisfies both. -->
+      <dependency>
+        <groupId>com.squareup.okhttp3</groupId>
+        <artifactId>okhttp</artifactId>
+        <version>3.14.9</version>
+      </dependency>
+      <dependency>
+        <groupId>com.squareup.okhttp3</groupId>
+        <artifactId>logging-interceptor</artifactId>
+        <version>3.14.9</version>
+      </dependency>
     </dependencies>
   </dependencyManagement>
 
@@ -60,6 +72,11 @@
     <dependency>
       <groupId>org.springframework.ai</groupId>
       <artifactId>spring-ai-starter-model-google-genai</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>com.razorpay</groupId>
+      <artifactId>razorpay-java</artifactId>
+      <version>1.4.9</version>
     </dependency>
 
     <dependency>
