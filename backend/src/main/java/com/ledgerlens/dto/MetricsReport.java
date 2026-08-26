@@ -1,6 +1,7 @@
 package com.ledgerlens.dto;
 
 import java.math.BigDecimal;
+import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 
@@ -18,7 +19,8 @@ public record MetricsReport(
         int detectedCount,
         int expectedCount,
         Map<String, TypeMetrics> byType,
-        TypeMetrics overall) {
+        TypeMetrics overall,
+        List<CalibrationBucket> calibration) {
 
     public record TypeMetrics(
             int truePositives,

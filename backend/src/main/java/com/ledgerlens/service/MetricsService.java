@@ -1,6 +1,7 @@
 package com.ledgerlens.service;
 
 import com.ledgerlens.dto.AnswerKey;
+import com.ledgerlens.dto.CalibrationBucket;
 import com.ledgerlens.dto.MetricsReport;
 import com.ledgerlens.entity.ExceptionRecord;
 import com.ledgerlens.entity.ExceptionStatus;
@@ -18,6 +19,7 @@ import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
@@ -32,12 +34,20 @@ import java.util.UUID;
  * <p>Predictions and ground truth are joined on the entity reference — an order id for order-level
  * findings, a UTR for bank-level ones — so a finding of the right type against the wrong record
  * counts as both a false positive and a false negative rather than quietly passing.
+ *
+ * <p>Precision and recall say how often the detector is right; the calibration buckets say whether
+ * it knows when it is. A detector that stamps everything 0.95 and is right 60% of the time scores
+ * the same precision as one that admits doubt, and only the buckets tell them apart.
  */
 @Service
 public class MetricsService {
 
     private static final BigDecimal ZERO = new BigDecimal("0.0000");
     private static final BigDecimal ONE = new BigDecimal("1.0000");
+    private static final BigDecimal[] BUCKET_EDGES = {
+            new BigDecimal("0.00"), new BigDecimal("0.50"), new BigDecimal("0.70"),
+            new BigDecimal("0.90"), new BigDecimal("1.00")
+    };
 
     private final IngestBatchRepository ingestBatchRepository;
     private final ExceptionRecordRepository exceptionRepository;
@@ -60,7 +70,7 @@ public class MetricsService {
 
         Path path = Path.of(answerKeyPath);
         if (!Files.isRegularFile(path)) {
-            return new MetricsReport(batchId, false, path.toString(), detected.size(), 0, Map.of(), null);
+            return new MetricsReport(batchId, false, path.toString(), detected.size(), 0, Map.of(), null, List.of());
         }
         AnswerKey answerKey = readAnswerKey(path);
 
@@ -94,7 +104,46 @@ public class MetricsService {
         }
 
         return new MetricsReport(batchId, true, path.toString(), detected.size(),
-                answerKey.anomalies().size(), byType, score(truePositives, falsePositives, falseNegatives));
+                answerKey.anomalies().size(), byType,
+                score(truePositives, falsePositives, falseNegatives),
+                calibrate(detected, expected));
+    }
+
+    /**
+     * Buckets findings by stated confidence and reports how often each bucket was actually right, so
+     * over-confidence shows up as a gap between the mean confidence and the observed accuracy.
+     */
+    private static List<CalibrationBucket> calibrate(List<ExceptionRecord> detected,
+                                                     Map<ExceptionStatus, Set<String>> expected) {
+        List<CalibrationBucket> buckets = new ArrayList<>();
+        for (int i = 0; i < BUCKET_EDGES.length - 1; i++) {
+            BigDecimal lower = BUCKET_EDGES[i];
+            BigDecimal upper = BUCKET_EDGES[i + 1];
+            boolean last = i == BUCKET_EDGES.length - 2;
+
+            int count = 0;
+            int correct = 0;
+            BigDecimal confidenceSum = BigDecimal.ZERO;
+            for (ExceptionRecord record : detected) {
+                BigDecimal confidence = record.getConfidence();
+                boolean inBucket = confidence.compareTo(lower) >= 0
+                        && (last ? confidence.compareTo(upper) <= 0 : confidence.compareTo(upper) < 0);
+                if (!inBucket) {
+                    continue;
+                }
+                count++;
+                confidenceSum = confidenceSum.add(confidence);
+                if (expected.getOrDefault(record.getStatus(), Set.of()).contains(record.getEntityRef())) {
+                    correct++;
+                }
+            }
+
+            buckets.add(new CalibrationBucket(lower, upper, count, correct,
+                    count == 0 ? null : confidenceSum.divide(BigDecimal.valueOf(count), 4, RoundingMode.HALF_UP),
+                    count == 0 ? null : BigDecimal.valueOf(correct)
+                            .divide(BigDecimal.valueOf(count), 4, RoundingMode.HALF_UP)));
+        }
+        return buckets;
     }
 
     private static MetricsReport.TypeMetrics score(int truePositives, int falsePositives, int falseNegatives) {
