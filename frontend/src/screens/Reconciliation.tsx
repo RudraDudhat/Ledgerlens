@@ -193,7 +193,7 @@ export function Reconciliation({
           {table.getHeaderGroups()[0]?.headers.map((header, index) => (
             <div
               key={header.id}
-              className="py-2 text-xs font-medium uppercase tracking-wider"
+              className="truncate py-2 pr-3 text-xs font-medium uppercase tracking-wider"
               style={{ color: 'var(--ink-faint)', textAlign: index === 1 || index === 6 ? 'right' : 'left' }}
             >
               {flexRender(header.column.columnDef.header, header.getContext())}

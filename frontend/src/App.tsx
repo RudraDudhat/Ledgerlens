@@ -78,7 +78,12 @@ export default function App() {
         )}
       </nav>
 
-      <main className="min-w-0 flex-1 overflow-hidden">
+      {/* The collapsed Ask tab is fixed to the right edge, so reserve a gutter it can sit in
+          rather than letting it cover the table and its scrollbar. */}
+      <main
+        className="min-w-0 flex-1 overflow-hidden"
+        style={{ paddingRight: batchId && screen !== 'upload' && !askOpen ? 44 : 0 }}
+      >
         <AnimatePresence mode="wait">
           {screen === 'upload' && (
             <Upload
