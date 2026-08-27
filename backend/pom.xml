@@ -78,6 +78,20 @@
       <artifactId>razorpay-java</artifactId>
       <version>1.4.9</version>
     </dependency>
+    <!-- Renders the settlement statement. Brings PDFBox with it, which the tests read the text back with. -->
+    <dependency>
+      <groupId>com.openhtmltopdf</groupId>
+      <artifactId>openhtmltopdf-pdfbox</artifactId>
+      <version>1.0.10</version>
+    </dependency>
+    <!-- DejaVu Sans, for the ₹ sign. The PDF base-14 fonts have no U+20B9 and drop it silently as a
+         hash, which on a settlement statement is worse than failing. Carried as a dependency rather
+         than as a committed .ttf; only the glyphs actually used are embedded in each PDF. -->
+    <dependency>
+      <groupId>net.sf.jasperreports</groupId>
+      <artifactId>jasperreports-fonts</artifactId>
+      <version>7.0.8</version>
+    </dependency>
 
     <dependency>
       <groupId>org.springframework.boot</groupId>
