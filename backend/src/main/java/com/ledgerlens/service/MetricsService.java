@@ -5,6 +5,7 @@ import com.ledgerlens.dto.CalibrationBucket;
 import com.ledgerlens.dto.MetricsReport;
 import com.ledgerlens.entity.ExceptionRecord;
 import com.ledgerlens.entity.ExceptionStatus;
+import com.ledgerlens.repository.AnomalyAlertRepository;
 import com.ledgerlens.repository.ExceptionRecordRepository;
 import com.ledgerlens.repository.IngestBatchRepository;
 import org.springframework.beans.factory.annotation.Value;
@@ -51,13 +52,16 @@ public class MetricsService {
 
     private final IngestBatchRepository ingestBatchRepository;
     private final ExceptionRecordRepository exceptionRepository;
+    private final AnomalyAlertRepository alertRepository;
     private final String answerKeyPath;
 
     public MetricsService(IngestBatchRepository ingestBatchRepository,
                           ExceptionRecordRepository exceptionRepository,
+                          AnomalyAlertRepository alertRepository,
                           @Value("${ledgerlens.answer-key-path:data/answer_key.json}") String answerKeyPath) {
         this.ingestBatchRepository = ingestBatchRepository;
         this.exceptionRepository = exceptionRepository;
+        this.alertRepository = alertRepository;
         this.answerKeyPath = answerKeyPath;
     }
 
@@ -70,7 +74,7 @@ public class MetricsService {
 
         Path path = Path.of(answerKeyPath);
         if (!Files.isRegularFile(path)) {
-            return new MetricsReport(batchId, false, path.toString(), detected.size(), 0, Map.of(), null, List.of());
+            return new MetricsReport(batchId, false, path.toString(), detected.size(), 0, Map.of(), null, List.of(), null);
         }
         AnswerKey answerKey = readAnswerKey(path);
 
@@ -106,8 +110,27 @@ public class MetricsService {
         return new MetricsReport(batchId, true, path.toString(), detected.size(),
                 answerKey.anomalies().size(), byType,
                 score(truePositives, falsePositives, falseNegatives),
-                calibrate(detected, expected));
+                calibrate(detected, expected),
+                scoreAlerts(batchId, answerKey));
     }
+    /**
+     * Grades the monitor's alerts against the degradations the generator deliberately applied. Only
+     * meaningful for a synthetic batch that recorded them; a real batch has no such ground truth and
+     * gets null rather than a fabricated score.
+     */
+    private MetricsReport.TypeMetrics scoreAlerts(UUID batchId, AnswerKey answerKey) {
+        if (answerKey.batchAnomalies() == null || answerKey.batchAnomalies().isEmpty()) {
+            return null;
+        }
+        Set<String> expected = new HashSet<>();
+        answerKey.batchAnomalies().forEach(anomaly -> expected.add(anomaly.metric()));
+        Set<String> raised = new HashSet<>();
+        alertRepository.findByBatchIdOrderById(batchId).forEach(alert -> raised.add(alert.getMetric()));
+
+        int hits = (int) raised.stream().filter(expected::contains).count();
+        return score(hits, raised.size() - hits, expected.size() - hits);
+    }
+
 
     /**
      * Buckets findings by stated confidence and reports how often each bucket was actually right, so

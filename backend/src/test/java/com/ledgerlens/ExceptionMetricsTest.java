@@ -69,6 +69,8 @@ class ExceptionMetricsTest {
     @Autowired
     ExceptionRecordRepository exceptionRepository;
     @Autowired
+    com.ledgerlens.repository.AnomalyAlertRepository alertRepository;
+    @Autowired
     MockMvc mockMvc;
 
     @BeforeAll
@@ -157,7 +159,7 @@ class ExceptionMetricsTest {
     void withoutAnAnswerKeyTheReportSaysSoRatherThanInventingScores() throws IOException {
         UUID batchId = reconciledBatch();
         MetricsService withoutKey =
-                new MetricsService(ingestBatchRepository, exceptionRepository, "no/such/answer_key.json");
+                new MetricsService(ingestBatchRepository, exceptionRepository, alertRepository, "no/such/answer_key.json");
 
         MetricsReport report = withoutKey.metrics(batchId);
 

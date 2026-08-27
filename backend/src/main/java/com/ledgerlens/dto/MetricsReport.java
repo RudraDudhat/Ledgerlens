@@ -20,7 +20,8 @@ public record MetricsReport(
         int expectedCount,
         Map<String, TypeMetrics> byType,
         TypeMetrics overall,
-        List<CalibrationBucket> calibration) {
+        List<CalibrationBucket> calibration,
+        TypeMetrics alertScore) {
 
     public record TypeMetrics(
             int truePositives,
