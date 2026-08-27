@@ -5,7 +5,7 @@ import { api, type WaterfallStep } from '../api/client'
 import { Skeleton, SkeletonCards } from '../components/Skeleton'
 import { ErrorState } from '../components/States'
 import { rupees, signedRupees } from '../lib/format'
-import { BAR_STAGGER_SECONDS, pageTransition, usePrefersReducedMotion } from '../lib/motion'
+import { BAR_STAGGER_SECONDS, pageTransition, usePrefersReducedMotion, useTypewriter } from '../lib/motion'
 import { pendingNarrative, retryNarrative } from '../lib/narrative'
 
 type Plotted = WaterfallStep & { base: number; magnitude: number; running: number; color: string }
@@ -233,26 +233,48 @@ export function Waterfall({
   )
 }
 
-/** Row ids inside the narration become chips, so a claim can be opened and checked. */
+/** A row id to open, or an amount to re-cut into the grouping the rest of the screen uses. */
+const NARRATION_TOKENS = /(\brow \d+\b|₹[\d,]+(?:\.\d+)?)/gi
+
+/**
+ * Row ids inside the narration become chips, so a claim can be opened and checked. Amounts are
+ * regrouped and set in the same monospace as the legend above: the model writes ₹1554691.47, which
+ * cannot be compared to a legend reading ₹15,54,691.47 without counting digits.
+ *
+ * <p>The text is paced out word by word. It has already arrived in full — this only shows it being
+ * written, and a chip or an amount forms as soon as the word carrying it lands.
+ */
 function NarrativeText({ text, onOpenRows }: { text: string; onOpenRows: (title: string, rowIds: number[]) => void }) {
-  const parts = text.split(/(\brow \d+\b)/gi)
+  const { shown, done } = useTypewriter(text)
+  const parts = shown.split(NARRATION_TOKENS)
   return (
-    <p className="mt-3 max-w-[70ch] text-sm leading-relaxed" style={{ color: 'var(--ink-muted)' }}>
+    <p className="mt-3 max-w-[68ch] text-sm leading-7" style={{ color: 'var(--ink-muted)' }}>
       {parts.map((part, index) => {
         const rowId = /^row (\d+)$/i.exec(part)
-        if (!rowId) return <span key={index}>{part}</span>
-        return (
-          <button
-            key={index}
-            type="button"
-            onClick={() => onOpenRows(part, [Number(rowId[1])])}
-            className="ref mx-0.5 rounded px-1"
-            style={{ background: 'var(--line)' }}
-          >
-            {part}
-          </button>
-        )
+        if (rowId) {
+          return (
+            <button
+              key={index}
+              type="button"
+              onClick={() => onOpenRows(part, [Number(rowId[1])])}
+              className="ref mx-0.5 rounded px-1"
+              style={{ background: 'var(--line)' }}
+            >
+              {part}
+            </button>
+          )
+        }
+        // Brighter than the prose around it, so the eye can pick the numbers out of the sentence.
+        if (part.startsWith('₹')) {
+          return (
+            <span key={index} className="amount" style={{ color: 'var(--ink)' }}>
+              {rupees(Number(part.slice(1).replace(/,/g, '')))}
+            </span>
+          )
+        }
+        return <span key={index}>{part}</span>
       })}
+      {!done && <span className="caret" aria-hidden="true" />}
     </p>
   )
 }

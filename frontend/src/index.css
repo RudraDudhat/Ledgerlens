@@ -51,6 +51,23 @@
   .no-scrollbar::-webkit-scrollbar {
     display: none;
   }
+
+  /* Marks text that is still landing. It stops with the last word rather than blinking forever. */
+  .caret {
+    display: inline-block;
+    width: 2px;
+    height: 1em;
+    margin-left: 2px;
+    vertical-align: -0.15em;
+    background: var(--accent);
+    animation: caret-blink 1s step-end infinite;
+  }
+
+  @keyframes caret-blink {
+    50% {
+      opacity: 0;
+    }
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {
