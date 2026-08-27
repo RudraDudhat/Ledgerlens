@@ -28,3 +28,6 @@ ledgerlens:
   # Ground truth for /api/metrics/{batchId}. Scores are omitted when this file is absent,
   # which is the normal case for a real merchant batch.
   answer-key-path: ${LEDGERLENS_ANSWER_KEY_PATH:data/answer_key.json}
+  # Printed at the head of the settlement statement. There is no merchant record in the
+  # schema, so the name the PDF is addressed to is configuration rather than data.
+  merchant-name: ${LEDGERLENS_MERCHANT_NAME:Your business}
