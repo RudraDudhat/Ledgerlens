@@ -108,14 +108,14 @@ export function Waterfall({
   }
 
   return (
-    <motion.div {...pageTransition} className="flex h-full gap-6 p-8">
-      <div className="flex min-w-0 flex-1 flex-col">
+    <motion.div {...pageTransition} className="no-scrollbar flex h-full flex-col gap-6 overflow-y-auto p-8">
+      <div className="min-w-0">
         <h1 className="text-lg font-semibold">Sales to bank</h1>
         <p className="mt-1 text-sm" style={{ color: 'var(--ink-muted)' }}>
           Every step is a signed delta, so the bars add up to the bank credits exactly once.
         </p>
 
-        <div className="card mt-5 flex-1 p-5">
+        <div className="card mt-5 p-5">
           <ResponsiveContainer width="100%" height={340}>
             <BarChart data={plotted} margin={{ top: 28, right: 8, bottom: 8, left: 8 }}>
               <XAxis
@@ -196,11 +196,11 @@ export function Waterfall({
         </div>
       </div>
 
-      <motion.aside
+      <motion.section
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         transition={{ duration: 0.35, delay: 0.15 }}
-        className="card w-[320px] shrink-0 self-start p-5"
+        className="card p-5"
       >
         <h2 className="text-sm font-semibold">What happened</h2>
 
@@ -210,7 +210,7 @@ export function Waterfall({
 
         {narrativeError != null && (
           <div className="mt-3">
-            <p className="text-xs" style={{ color: 'var(--ink-muted)' }}>
+            <p className="max-w-[70ch] text-xs" style={{ color: 'var(--ink-muted)' }}>
               No narration: the numbers above are unaffected.
             </p>
             <div className="mt-3 flex gap-3">
@@ -228,7 +228,7 @@ export function Waterfall({
             </div>
           </div>
         )}
-      </motion.aside>
+      </motion.section>
     </motion.div>
   )
 }
@@ -237,7 +237,7 @@ export function Waterfall({
 function NarrativeText({ text, onOpenRows }: { text: string; onOpenRows: (title: string, rowIds: number[]) => void }) {
   const parts = text.split(/(\brow \d+\b)/gi)
   return (
-    <p className="mt-3 text-sm leading-relaxed" style={{ color: 'var(--ink-muted)' }}>
+    <p className="mt-3 max-w-[70ch] text-sm leading-relaxed" style={{ color: 'var(--ink-muted)' }}>
       {parts.map((part, index) => {
         const rowId = /^row (\d+)$/i.exec(part)
         if (!rowId) return <span key={index}>{part}</span>

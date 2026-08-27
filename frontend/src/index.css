@@ -41,6 +41,16 @@
     font-family: 'JetBrains Mono', ui-monospace, monospace;
     font-size: 12px;
   }
+
+  /* Still scrolls on wheel and keyboard; only the browser's chrome bar is taken out of the frame. */
+  .no-scrollbar {
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+  }
+
+  .no-scrollbar::-webkit-scrollbar {
+    display: none;
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {
