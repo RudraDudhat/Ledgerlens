@@ -1,7 +1,8 @@
 import { flexRender, getCoreRowModel, useReactTable, type ColumnDef } from '@tanstack/react-table'
 import { motion } from 'framer-motion'
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { api, type ExceptionView, type MatchView, type ReconcileSummary } from '../api/client'
+import { api, type AlertView, type ExceptionView, type MatchView, type ReconcileSummary } from '../api/client'
+import { HealthStrip } from '../components/HealthStrip'
 import { StatCard } from '../components/StatCard'
 import { StatusBadge, semanticColor } from '../components/StatusBadge'
 import { StatusStrip } from '../components/StatusStrip'
@@ -28,9 +29,11 @@ const OVERSCAN = 8
 export function Reconciliation({
   batchId,
   onOpenRow,
+  onOpenAlert,
 }: {
   batchId: string
   onOpenRow: (row: Row) => void
+  onOpenAlert: (alert: AlertView, failureRateByHour: Record<string, number>) => void
 }) {
   const [summary, setSummary] = useState<ReconcileSummary | null>(null)
   const [rows, setRows] = useState<Row[] | null>(null)
@@ -153,6 +156,10 @@ export function Reconciliation({
 
   return (
     <motion.div {...pageTransition} className="flex h-full flex-col p-8">
+      <div className="mb-5">
+        <HealthStrip batchId={batchId} onOpenAlert={onOpenAlert} />
+      </div>
+
       <div className="grid grid-cols-3 gap-4">
         <StatCard label="Match rate" countUpTo={summary.orderMatchRate} format={percent} emphasis />
         <StatCard label="Sales total" value={rupees(summary.grossSales)} />

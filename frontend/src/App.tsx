@@ -1,6 +1,7 @@
 import { AnimatePresence } from 'framer-motion'
 import { useCallback, useState } from 'react'
 import { AskPanel } from './components/AskPanel'
+import type { AlertView } from './api/client'
 import { Drawer, type DrawerSubject } from './components/Drawer'
 import { Forecast } from './screens/Forecast'
 import { Landing } from './screens/Landing'
@@ -26,6 +27,10 @@ export default function App() {
 
   const openRow = useCallback((row: Row) => {
     setDrawer({ kind: 'row', orderId: row.orderId, match: row.match, exception: row.exception })
+  }, [])
+
+  const openAlert = useCallback((alert: AlertView, failureRateByHour: Record<string, number>) => {
+    setDrawer({ kind: 'alert', alert, failureRateByHour })
   }, [])
 
   const openRows = useCallback((title: string, rowIds: number[]) => {
@@ -100,7 +105,7 @@ export default function App() {
             />
           )}
           {screen === 'reconciliation' && batchId && (
-            <Reconciliation key="reconciliation" batchId={batchId} onOpenRow={openRow} />
+            <Reconciliation key="reconciliation" batchId={batchId} onOpenRow={openRow} onOpenAlert={openAlert} />
           )}
           {screen === 'waterfall' && batchId && (
             <Waterfall key="waterfall" batchId={batchId} onOpenRows={openRows} onAskAbout={askAbout} />

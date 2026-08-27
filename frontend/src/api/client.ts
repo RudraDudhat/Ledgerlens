@@ -164,3 +164,48 @@ export async function loadSampleFiles(): Promise<{ orders: File; settlement: Fil
   ])
   return { orders, settlement, bank }
 }
+
+export type BatchMetrics = {
+  feeRate: number
+  failureRate: number
+  failureRateByMethod: Record<string, number>
+  failureRateByHour: Record<string, number>
+  disputeRate: number
+  matchRate: number
+  settlementDelayDaysByMethod: Record<string, number>
+  avgSettlementDelayDays: number
+  orderCount: number
+}
+
+export type AlertView = {
+  id: number
+  metric: string
+  currentValue: number
+  baselineValue: number
+  ratio: number
+  severity: 'WARN' | 'HIGH'
+  sourceRowIds: number[]
+  likelyCause: string | null
+  suggestedCheck: string | null
+  confidence: number | null
+}
+
+export type HealthReport = {
+  batchId: string
+  metrics: BatchMetrics
+  baseline: BatchMetrics | null
+  priorBatchCount: number
+  insufficientHistory: boolean
+  alerts: AlertView[]
+}
+
+export type HealthHistoryPoint = { batchId: string; computedAt: string; metrics: BatchMetrics }
+
+export const healthApi = {
+  report(batchId: string): Promise<HealthReport> {
+    return request<HealthReport>(`/api/health/${batchId}`)
+  },
+  history(batchId: string): Promise<HealthHistoryPoint[]> {
+    return request<HealthHistoryPoint[]>(`/api/health/${batchId}/history`)
+  },
+}

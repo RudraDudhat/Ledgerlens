@@ -1,11 +1,12 @@
 import { AnimatePresence, motion } from 'framer-motion'
 import { useEffect } from 'react'
-import type { ExceptionView, MatchView } from '../api/client'
+import type { AlertView, ExceptionView, MatchView } from '../api/client'
 import { rupees, shortDate } from '../lib/format'
 import { drawerTransition } from '../lib/motion'
 import { StatusBadge } from './StatusBadge'
 
 export type DrawerSubject =
+  | { kind: 'alert'; alert: AlertView; failureRateByHour: Record<string, number> }
   | { kind: 'row'; orderId: string; match?: MatchView; exception?: ExceptionView }
   | { kind: 'rows'; title: string; rowIds: number[] }
 
@@ -44,7 +45,7 @@ export function Drawer({
         >
           <div className="flex items-start justify-between">
             <h2 className="text-sm font-semibold">
-              {subject.kind === 'row' ? subject.orderId : subject.title}
+              {subject.kind === 'row' ? subject.orderId : subject.kind === 'alert' ? alertTitle(subject.alert) : subject.title}
             </h2>
             <button
               type="button"
@@ -75,6 +76,8 @@ export function Drawer({
                 </p>
               )}
             </div>
+          ) : subject.kind === 'alert' ? (
+            <AlertDetail subject={subject} />
           ) : (
             <EvidenceTrail subject={subject} onAskAbout={onAskAbout} />
           )}
@@ -158,6 +161,117 @@ function EvidenceTrail({
           Ask about this row
         </button>
       )}
+    </div>
+  )
+}
+
+function alertTitle(alert: AlertView): string {
+  return alert.metric.replace(/_/g, ' ').replace(/hour (\d+)/, 'at $1:00')
+}
+
+/**
+ * What moved, by how much, and the rows behind it. The model's contribution is labelled as such and
+ * kept below the numbers, because the numbers stand whether or not it had anything useful to say.
+ */
+function AlertDetail({ subject }: { subject: Extract<DrawerSubject, { kind: 'alert' }> }) {
+  const { alert, failureRateByHour } = subject
+  const tone = alert.severity === 'HIGH' ? 'var(--lost)' : 'var(--held)'
+  const isHourAlert = alert.metric.startsWith('failure_rate_hour_')
+  const flaggedHour = isHourAlert ? Number(alert.metric.slice(-2)) : null
+
+  return (
+    <div className="mt-6">
+      <span
+        className="inline-flex rounded-full px-2 py-0.5 text-[11px] font-medium"
+        style={{ color: tone, background: alert.severity === 'HIGH' ? 'var(--lost-soft)' : 'var(--held-soft)' }}
+      >
+        {alert.severity} · {alert.ratio.toFixed(1)}× baseline
+      </span>
+
+      <dl className="mt-4 grid grid-cols-2 gap-3 text-sm">
+        <div>
+          <dt className="text-xs" style={{ color: 'var(--ink-faint)' }}>
+            this batch
+          </dt>
+          <dd className="amount" style={{ textAlign: 'left', color: tone }}>
+            {alert.currentValue.toFixed(4)}
+          </dd>
+        </div>
+        <div>
+          <dt className="text-xs" style={{ color: 'var(--ink-faint)' }}>
+            baseline
+          </dt>
+          <dd className="amount" style={{ textAlign: 'left' }}>
+            {alert.baselineValue.toFixed(4)}
+          </dd>
+        </div>
+      </dl>
+
+      {isHourAlert && (
+        <div className="mt-6">
+          <p className="text-xs" style={{ color: 'var(--ink-faint)' }}>
+            Failure rate by hour — the flagged hour is judged against this batch, not against history.
+          </p>
+          <div className="mt-2 flex h-16 items-end gap-[2px]">
+            {Array.from({ length: 24 }, (_, hour) => {
+              const rate = failureRateByHour[String(hour)] ?? 0
+              const tallest = Math.max(...Object.values(failureRateByHour), 0.0001)
+              return (
+                <div
+                  key={hour}
+                  className="flex-1 rounded-sm"
+                  style={{
+                    height: `${Math.max(2, (rate / tallest) * 100)}%`,
+                    background: hour === flaggedHour ? tone : 'var(--line)',
+                  }}
+                  title={`${String(hour).padStart(2, '0')}:00 — ${(rate * 100).toFixed(1)}%`}
+                />
+              )
+            })}
+          </div>
+          <div className="mt-1 flex justify-between text-[10px]" style={{ color: 'var(--ink-faint)' }}>
+            <span>00</span>
+            <span>12</span>
+            <span>23</span>
+          </div>
+        </div>
+      )}
+
+      {alert.likelyCause ? (
+        <div className="mt-6 border-t pt-4" style={{ borderColor: 'var(--line)' }}>
+          <p className="text-xs" style={{ color: 'var(--ink-faint)' }}>
+            Suggested by the model — the figures above were computed without it
+          </p>
+          <p className="mt-2 text-sm leading-relaxed">{alert.likelyCause}</p>
+          {alert.suggestedCheck && (
+            <p className="mt-2 text-sm" style={{ color: 'var(--ink-muted)' }}>
+              Check: {alert.suggestedCheck}
+            </p>
+          )}
+          {alert.confidence !== null && (
+            <p className="ref mt-2" style={{ color: 'var(--ink-faint)' }}>
+              confidence {alert.confidence.toFixed(3)}
+            </p>
+          )}
+        </div>
+      ) : (
+        <p className="mt-6 border-t pt-4 text-xs" style={{ borderColor: 'var(--line)', color: 'var(--ink-faint)' }}>
+          No explanation was generated. The numbers above are unaffected.
+        </p>
+      )}
+
+      <div className="mt-6">
+        <p className="text-xs" style={{ color: 'var(--ink-faint)' }}>
+          {alert.sourceRowIds.length} rows driving this
+        </p>
+        <ul className="mt-2 grid grid-cols-5 gap-1">
+          {alert.sourceRowIds.map((id) => (
+            <li key={id} className="ref rounded px-1 py-1 text-center" style={{ background: 'var(--line)' }}>
+              {id}
+            </li>
+          ))}
+        </ul>
+      </div>
     </div>
   )
 }
