@@ -5,6 +5,7 @@ import com.ledgerlens.dto.MatchView;
 import com.ledgerlens.dto.ReconcileSummary;
 import com.ledgerlens.entity.AuditLog;
 import com.ledgerlens.entity.BankEntry;
+import com.ledgerlens.entity.ExceptionRecord;
 import com.ledgerlens.entity.ExceptionStatus;
 import com.ledgerlens.entity.MatchRecord;
 import com.ledgerlens.entity.MerchantOrder;
@@ -32,6 +33,7 @@ import java.time.LocalDateTime;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.TreeMap;
 import java.util.UUID;
 import java.util.function.Function;
@@ -122,6 +124,10 @@ public class ReconciliationService {
     public List<ExceptionView> exceptions(UUID batchId) {
         requireBatch(batchId);
         Map<String, Payment> paymentsByOrder = paymentsByOrderId(batchId);
+        Map<Long, SettlementBatch> settlementsById =
+                byId(settlementBatchRepository.findByBatchIdOrderBySettledOn(batchId), SettlementBatch::getId);
+        Map<Long, BankEntry> bankById = byId(bankEntryRepository.findByBatchIdOrderById(batchId), BankEntry::getId);
+
         return exceptionRepository.findByBatchIdOrderById(batchId).stream()
                 .map(record -> {
                     Payment payment = paymentsByOrder.get(record.getEntityRef());
@@ -131,12 +137,47 @@ public class ReconciliationService {
                             record.getEntityRef(),
                             record.getReason(),
                             record.getConfidence(),
-                            payment == null ? null : payment.getAmount(),
+                            payment != null
+                                    ? payment.getAmount()
+                                    : bankLevelAmount(record, settlementsById, bankById),
                             payment == null ? null : payment.getMethod().name(),
                             record.getOrigin().name(),
                             record.getSourceRowIds());
                 })
                 .toList();
+    }
+
+    /**
+     * The money at stake in an exception keyed by UTR rather than by order.
+     *
+     * <p>These are the findings that matter most — a payout the bank never credited, a credit posted
+     * twice — and looking them up by order id leaves them with no amount at all, so anything
+     * displaying them shows a blank where the money should be. The rows the detector cited carry it:
+     * for a missing payout that is what Razorpay settled, for a duplicate what the bank credited
+     * again, and for a mismatch the size of the gap. Magnitudes only — the reason text says which
+     * way a mismatch went.
+     */
+    private static BigDecimal bankLevelAmount(ExceptionRecord record,
+                                              Map<Long, SettlementBatch> settlementsById,
+                                              Map<Long, BankEntry> bankById) {
+        List<Long> cited = record.getSourceRowIds();
+        if (cited == null || cited.isEmpty()) {
+            return null;
+        }
+        SettlementBatch settlement = cited.stream().map(settlementsById::get).filter(Objects::nonNull)
+                .findFirst().orElse(null);
+        BankEntry entry = cited.stream().map(bankById::get).filter(Objects::nonNull)
+                .findFirst().orElse(null);
+
+        return switch (record.getStatus()) {
+            case BANK_MISSING -> settlement == null ? null : settlement.getAmount();
+            case BANK_DUPLICATE -> entry == null ? null : entry.getAmount();
+            case AMOUNT_MISMATCH -> settlement == null || entry == null
+                    ? null
+                    : entry.getAmount().subtract(settlement.getAmount()).abs();
+            case UNKNOWN -> entry == null ? null : entry.getAmount();
+            default -> null;
+        };
     }
 
     @Transactional(readOnly = true)

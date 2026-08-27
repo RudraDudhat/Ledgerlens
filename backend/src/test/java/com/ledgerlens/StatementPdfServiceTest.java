@@ -1,12 +1,15 @@
 package com.ledgerlens;
 
+import com.ledgerlens.dto.ExceptionView;
 import com.ledgerlens.dto.IngestResponse;
+import com.ledgerlens.dto.WaterfallStep;
 import com.ledgerlens.entity.AuditLog;
 import com.ledgerlens.repository.AuditLogRepository;
 import com.ledgerlens.service.CsvIngestService;
 import com.ledgerlens.service.ReconciliationService;
 import com.ledgerlens.service.StatementPdfService;
 import com.ledgerlens.service.SyntheticDataWriter;
+import com.ledgerlens.service.WaterfallService;
 import org.apache.pdfbox.pdmodel.PDDocument;
 import org.apache.pdfbox.text.PDFTextStripper;
 import org.junit.jupiter.api.BeforeEach;
@@ -23,6 +26,7 @@ import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
 
 import java.io.IOException;
+import java.math.BigDecimal;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
@@ -72,6 +76,8 @@ class StatementPdfServiceTest {
     @Autowired
     AuditLogRepository auditLogRepository;
     @Autowired
+    WaterfallService waterfallService;
+    @Autowired
     StubChatModel chatModel;
 
     @BeforeEach
@@ -108,6 +114,28 @@ class StatementPdfServiceTest {
         assertThat(text).contains(grouped(summary.totalBankCredits()));
         assertThat(text).contains("₹");
         assertThat(text).doesNotContain(summary.grossSales().toPlainString());
+    }
+
+    /**
+     * The money story owns page one and the exception list owns page two. Splitting the waterfall or
+     * the plain-words paragraph across the fold is what makes a statement unreadable on a phone.
+     */
+    @Test
+    void keepsTheMoneyStoryOnPageOneAndTheExceptionsOnPageTwo() throws IOException {
+        UUID batchId = reconciledBatch();
+
+        byte[] pdf = statementPdfService.render(batchId).pdf();
+
+        String first = textOfPage(pdf, 1);
+        assertThat(first).containsIgnoringCase("Where the money went");
+        assertThat(first).containsIgnoringCase("In plain words");
+        assertThat(first).doesNotContainIgnoringCase("What needs your attention");
+
+        String second = textOfPage(pdf, 2);
+        assertThat(second).containsIgnoringCase("What needs your attention");
+        // The whole section has to land on that page rather than running onto a third.
+        assertThat(second).contains("payouts your bank has not credited");
+        assertThat(second).contains("failed payments");
     }
 
     @Test
@@ -164,17 +192,76 @@ class StatementPdfServiceTest {
                 .contains("pages=" + statement.pages());
     }
 
+    /**
+     * The section is a to-do list, so it lists only what the reader can act on. Failed payments and
+     * refunds are stated once as a total: the money is already in the waterfall, and listing them
+     * order by order buries the payouts the bank never credited.
+     */
     @Test
-    void capsTheExceptionListSoTheStatementStaysShort() throws IOException {
+    void statesUnactionableExceptionsAsATotalRatherThanListingThem() throws IOException {
         UUID batchId = reconciledBatch();
-        int total = reconciliationService.exceptions(batchId).size();
+        List<ExceptionView> all = reconciliationService.exceptions(batchId);
+        List<String> failedRefs = all.stream()
+                .filter(view -> "PAYMENT_FAILED".equals(view.status()))
+                .map(ExceptionView::entityRef)
+                .toList();
 
         String text = textOf(statementPdfService.render(batchId).pdf());
 
-        assertThat(total)
-                .as("the committed batch should carry more exceptions than the statement prints")
-                .isGreaterThan(StatementPdfService.EXCEPTION_ROW_CAP);
-        assertThat(text).contains("more in the dashboard");
+        assertThat(failedRefs).isNotEmpty();
+        assertThat(text)
+                .as("a failed payment is not a task, so no order id of one should be printed")
+                .doesNotContain(failedRefs);
+        assertThat(text).contains("failed payments");
+
+        // Every bank-level finding is listed in full, with the UTR to quote at the bank.
+        List<String> bankRefs = all.stream()
+                .filter(view -> "BANK_MISSING".equals(view.status()))
+                .map(ExceptionView::entityRef)
+                .toList();
+        assertThat(bankRefs).isNotEmpty();
+        bankRefs.forEach(ref -> assertThat(text).contains(ref));
+    }
+
+    /**
+     * A summary line has to quote the waterfall, not re-add the rows underneath it: refunds whose
+     * order predates the batch have no row, so the two disagree, and a statement must not contradict
+     * itself across a page fold.
+     */
+    @Test
+    void takesSummaryTotalsFromTheWaterfallNotFromTheRows() throws IOException {
+        UUID batchId = reconciledBatch();
+        List<WaterfallStep> steps = waterfallService.waterfall(batchId);
+
+        String text = textOf(statementPdfService.render(batchId).pdf());
+
+        for (String label : List.of("Refunds", "Held for disputes", "Failed payments")) {
+            BigDecimal fromWaterfall = steps.stream()
+                    .filter(step -> step.label().equals(label))
+                    .map(WaterfallStep::amount)
+                    .findFirst()
+                    .orElseThrow();
+            assertThat(text)
+                    .as("the summary line for %s must show the waterfall's own figure", label)
+                    .contains(grouped(fromWaterfall.abs()));
+        }
+    }
+
+    /** Bank-level findings are keyed by UTR, and used to reach the page with no amount at all. */
+    @Test
+    void givesBankLevelExceptionsTheMoneyAtStake() throws IOException {
+        UUID batchId = reconciledBatch();
+
+        List<ExceptionView> bankLevel = reconciliationService.exceptions(batchId).stream()
+                .filter(view -> List.of("BANK_MISSING", "BANK_DUPLICATE", "AMOUNT_MISMATCH")
+                        .contains(view.status()))
+                .toList();
+
+        assertThat(bankLevel).isNotEmpty();
+        assertThat(bankLevel).allSatisfy(view -> {
+            assertThat(view.amount()).as("%s %s carries no amount", view.status(), view.entityRef()).isNotNull();
+            assertThat(view.amount().signum()).isPositive();
+        });
     }
 
     private UUID reconciledBatch() throws IOException {
@@ -189,6 +276,16 @@ class StatementPdfServiceTest {
     private static String textOf(byte[] pdf) throws IOException {
         try (PDDocument document = PDDocument.load(pdf)) {
             return new PDFTextStripper().getText(document);
+        }
+    }
+
+    private static String textOfPage(byte[] pdf, int page) throws IOException {
+        try (PDDocument document = PDDocument.load(pdf)) {
+            assertThat(document.getNumberOfPages()).isGreaterThanOrEqualTo(page);
+            PDFTextStripper stripper = new PDFTextStripper();
+            stripper.setStartPage(page);
+            stripper.setEndPage(page);
+            return stripper.getText(document);
         }
     }
 

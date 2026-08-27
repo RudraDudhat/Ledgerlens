@@ -39,12 +39,12 @@
       text-transform: uppercase;
       letter-spacing: 0.08em;
       color: #444444;
-      margin: 14pt 0 5pt 0;
+      margin: 22pt 0 7pt 0;
       border-bottom: 0.5pt solid #cccccc;
       padding-bottom: 2pt;
     }
 
-    .masthead { border-bottom: 1pt solid #111111; padding-bottom: 6pt; }
+    .masthead { border-bottom: 1pt solid #111111; padding-bottom: 10pt; }
     .merchant { font-size: 11pt; font-weight: bold; }
     .meta { font-size: 8pt; color: #555555; margin-top: 2pt; }
     .batch { font-size: 7pt; color: #999999; margin-top: 1pt; }
@@ -52,11 +52,11 @@
     /* The whole statement in one sentence, sized so it is the first thing read. */
     .headline {
       font-size: 12.5pt;
-      line-height: 1.4;
-      margin: 12pt 0 0 0;
+      line-height: 1.5;
+      margin: 20pt 0 4pt 0;
     }
 
-    table.waterfall { width: 100%; border-collapse: collapse; margin-top: 4pt; }
+    table.waterfall { width: 100%; border-collapse: collapse; margin-top: 6pt; }
     table.waterfall th {
       font-size: 7.5pt;
       text-transform: uppercase;
@@ -68,7 +68,7 @@
       border-bottom: 0.5pt solid #cccccc;
     }
     table.waterfall td {
-      padding: 3pt 4pt 3pt 0;
+      padding: 5.5pt 4pt 5.5pt 0;
       border-bottom: 0.5pt solid #eeeeee;
       vertical-align: middle;
     }
@@ -88,9 +88,9 @@
       border-bottom: none;
       padding-top: 5pt;
     }
-    .note { font-size: 8pt; color: #555555; margin-top: 4pt; }
+    .note { font-size: 8pt; color: #555555; margin-top: 8pt; }
 
-    p.plain { margin: 0; }
+    p.plain { margin: 0; line-height: 1.65; }
 
     .group { margin-top: 8pt; }
     .group-head { font-weight: bold; font-size: 9pt; }
@@ -107,6 +107,12 @@
     .when { width: 16%; white-space: nowrap; color: #555555; }
     .why { color: #333333; }
     .more { font-size: 8pt; color: #555555; margin-top: 4pt; }
+
+    /* The money story ends at the plain-words paragraph. The exception list is reference material
+       for whoever is chasing it, so it takes its own page instead of trailing off the first one and
+       splitting the answer across a fold. The row cap keeps it to that one page. */
+    .new-page { page-break-before: always; }
+    .new-page h2 { margin-top: 0; }
 
     ul.alerts { margin: 0; padding-left: 12pt; }
     ul.alerts li { margin-bottom: 3pt; }
@@ -144,8 +150,10 @@
 <h2>In plain words</h2>
 {{plainWords}}
 
-<h2>What needs your attention</h2>
-{{attention}}
+<div class="new-page">
+  <h2>What needs your attention</h2>
+  {{attention}}
+</div>
 
 {{changes}}
 

@@ -58,7 +58,10 @@ public class StatementPdfService {
     static final String STATEMENT_ACTION = "STATEMENT_PDF";
 
     /** At most this many exception rows, then a line saying how many were left out. */
-    public static final int EXCEPTION_ROW_CAP = 25;
+    public static final int EXCEPTION_ROW_CAP = 15;
+
+    /** As much narration as page one has room for, measured against a full ten-row waterfall. */
+    static final int NARRATIVE_CHAR_CAP = 900;
 
     private static final String FONT_FAMILY = "DejaVu Sans";
     private static final String FONT_REGULAR = "net/sf/jasperreports/fonts/dejavu/DejaVuSans.ttf";
@@ -74,9 +77,9 @@ public class StatementPdfService {
      */
     private static final Map<String, String> STATUS_MEANING = Map.of(
             "PAYMENT_FAILED",
-            "The payment never went through, so no money was collected for these orders and none is owed to you.",
+            "The payment never went through, so no money was collected and none is owed to you.",
             "HELD_DISPUTE",
-            "A customer disputed this payment; Razorpay holds the money until it is resolved.",
+            "Customers disputed these payments, so Razorpay is holding the money until each one resolves.",
             "REFUND_PRIOR_CYCLE",
             "You refunded these after the original payment had already been paid out, so the money came back "
                     + "out of a later payout.",
@@ -91,6 +94,16 @@ public class StatementPdfService {
             "These could not be explained by any rule and need a human eye.",
             "MATCHED",
             "These lined up cleanly and need nothing from you.");
+
+    /**
+     * Statuses stated as one total rather than listed, mapped to the waterfall step that carries the
+     * money. Nothing here is a task: the reader cannot un-fail a payment or un-refund an order, and
+     * a dispute resolves on Razorpay's clock, not theirs.
+     */
+    private static final Map<String, String> SUMMARISED = Map.of(
+            "HELD_DISPUTE", WaterfallService.HELD,
+            "REFUND_PRIOR_CYCLE", WaterfallService.REFUNDS,
+            "PAYMENT_FAILED", WaterfallService.FAILED_PAYMENTS);
 
     private static final Map<String, String> METRIC_NAMES = Map.of(
             "fee_rate", "Fees and GST as a share of sales",
@@ -191,7 +204,7 @@ public class StatementPdfService {
                 .replace("{{waterfallRows}}", waterfallRows(steps, sales, received))
                 .replace("{{reconcileNote}}", reconcileNote(steps, received))
                 .replace("{{plainWords}}", plainWords(narrative))
-                .replace("{{attention}}", attention(exceptions, orders))
+                .replace("{{attention}}", attention(exceptions, orders, steps))
                 .replace("{{changes}}", changes(health));
     }
 
@@ -250,12 +263,45 @@ public class StatementPdfService {
 
     private static String plainWords(Optional<String> narrative) {
         return narrative
-                .map(text -> "<p class=\"plain\">" + escape(text) + "</p>")
+                .map(text -> "<p class=\"plain\">" + escape(fitToPage(text)) + "</p>")
                 .orElse("<p class=\"empty\">No plain-words summary was written for this batch. "
                         + "Every number above is computed from your files and is unaffected.</p>");
     }
 
-    private static String attention(List<ExceptionView> exceptions, List<MerchantOrder> orders) {
+    /**
+     * Holds the narration to what the first page can take.
+     *
+     * <p>The prompt asks for 120 words, but a prompt is a request. A narration twice that long
+     * pushes the waterfall onto a second page and the exception list onto a third, and the whole
+     * point of the layout is that the money story is one page. Cut at the last full sentence that
+     * fits, so what remains still reads as prose rather than as a severed clause.
+     */
+    private static String fitToPage(String text) {
+        String trimmed = text.trim();
+        if (trimmed.length() <= NARRATIVE_CHAR_CAP) {
+            return trimmed;
+        }
+        String window = trimmed.substring(0, NARRATIVE_CHAR_CAP);
+        int lastSentence = window.lastIndexOf(". ");
+        if (lastSentence > NARRATIVE_CHAR_CAP / 2) {
+            return window.substring(0, lastSentence + 1);
+        }
+        int lastSpace = window.lastIndexOf(' ');
+        return (lastSpace > 0 ? window.substring(0, lastSpace) : window) + "…";
+    }
+
+    /**
+     * A row earns a line here only if the reader has to do something about it.
+     *
+     * <p>A refund from an earlier cycle and a payment that never went through are explanations, not
+     * tasks: the money is already accounted for in the waterfall above, and listing them order by
+     * order fills the page with rows nobody can act on while a payout the bank never credited goes
+     * unmentioned. Those two, and disputes, are stated once each as a total; everything that is
+     * actually wrong or missing is listed in full.
+     */
+    private static String attention(List<ExceptionView> exceptions,
+                                    List<MerchantOrder> orders,
+                                    List<WaterfallStep> steps) {
         if (exceptions.isEmpty()) {
             return "<p class=\"empty\">Nothing needs your attention: every order was matched to a payout.</p>";
         }
@@ -263,13 +309,18 @@ public class StatementPdfService {
         Map<String, LocalDateTime> whenByOrder = new HashMap<>();
         orders.forEach(order -> whenByOrder.put(order.getOrderId(), order.getOrderTs()));
 
-        // Biggest group first: the thing costing the most orders is the thing to read about first.
+        List<ExceptionView> actionable = exceptions.stream()
+                .filter(view -> !SUMMARISED.containsKey(view.status()))
+                .toList();
+
+        // Money missing before money merely disagreeing, biggest group first within a rank, so a
+        // truncation drops the least urgent rows rather than whichever group happens to be smallest.
         Map<String, List<ExceptionView>> grouped = new LinkedHashMap<>();
-        exceptions.stream()
+        actionable.stream()
                 .collect(Collectors.groupingBy(ExceptionView::status))
                 .entrySet().stream()
-                .sorted(Comparator.<Map.Entry<String, List<ExceptionView>>>comparingInt(e -> e.getValue().size())
-                        .reversed()
+                .sorted(Comparator.<Map.Entry<String, List<ExceptionView>>>comparingInt(e -> urgencyOf(e.getKey()))
+                        .thenComparing(e -> e.getValue().size(), Comparator.reverseOrder())
                         .thenComparing(Map.Entry::getKey))
                 .forEach(entry -> grouped.put(entry.getKey(), entry.getValue()));
 
@@ -307,13 +358,63 @@ public class StatementPdfService {
             out.append("</table></div>");
         }
 
-        int remaining = exceptions.size() - shown;
+        int remaining = actionable.size() - shown;
         if (remaining > 0) {
             out.append("<p class=\"more\">… and ")
                     .append(remaining)
                     .append(" more in the dashboard.</p>");
         }
+
+        // Last, and without rows: these close the section rather than opening it.
+        exceptions.stream()
+                .map(ExceptionView::status)
+                .distinct()
+                .filter(SUMMARISED::containsKey)
+                .sorted(Comparator.comparingInt(status -> urgencyOf(status)))
+                .forEach(status -> out.append(summaryLine(status, exceptions, steps)));
+
         return out.toString();
+    }
+
+    /** Lower is more urgent. Ranks the listed groups and orders the summary lines under them. */
+    private static int urgencyOf(String status) {
+        return switch (status) {
+            case "BANK_MISSING" -> 0;
+            case "BANK_DUPLICATE" -> 1;
+            case "AMOUNT_MISMATCH" -> 2;
+            case "UNKNOWN" -> 3;
+            case "HELD_DISPUTE" -> 4;
+            case "REFUND_PRIOR_CYCLE" -> 5;
+            default -> 6;
+        };
+    }
+
+    /**
+     * One line for a whole status: how many, how much, and why it needs nothing.
+     *
+     * <p>The total comes from the waterfall step, never from re-adding the exception rows. The two
+     * do not agree — a refund whose order predates the batch has no row to add, and a held payment's
+     * row carries its gross while the waterfall holds back the net — and a statement whose second
+     * page contradicts its own first page is worse than one that says less.
+     */
+    private static String summaryLine(String status, List<ExceptionView> exceptions, List<WaterfallStep> steps) {
+        long count = exceptions.stream().filter(view -> status.equals(view.status())).count();
+        BigDecimal total = stepAmount(steps, SUMMARISED.get(status));
+        String heading = headingFor(status, (int) count) + (total == null ? "" : " — " + rupees(total.abs()));
+        return "<div class=\"group\"><div class=\"group-head\">"
+                + escape(heading)
+                + "</div><p class=\"group-why\">"
+                + escape(STATUS_MEANING.getOrDefault(status, "These need a human eye.")
+                        + " Each one is listed in the dashboard.")
+                + "</p></div>";
+    }
+
+    private static BigDecimal stepAmount(List<WaterfallStep> steps, String label) {
+        return steps.stream()
+                .filter(step -> step.label().equals(label))
+                .map(WaterfallStep::amount)
+                .findFirst()
+                .orElse(null);
     }
 
     private static String headingFor(String status, int count) {
