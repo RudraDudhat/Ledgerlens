@@ -1,7 +1,7 @@
 import { motion } from 'framer-motion'
 import { useEffect, useMemo, useState } from 'react'
 import { Bar, BarChart, Cell, ResponsiveContainer, Tooltip, XAxis } from 'recharts'
-import { api, type WaterfallStep } from '../api/client'
+import { ApiError, api, type WaterfallStep } from '../api/client'
 import { Skeleton, SkeletonCards } from '../components/Skeleton'
 import { ErrorState } from '../components/States'
 import { rupees, signedRupees } from '../lib/format'
@@ -110,10 +110,15 @@ export function Waterfall({
   return (
     <motion.div {...pageTransition} className="no-scrollbar flex h-full flex-col gap-6 overflow-y-auto p-8">
       <div className="min-w-0">
-        <h1 className="text-lg font-semibold">Sales to bank</h1>
-        <p className="mt-1 text-sm" style={{ color: 'var(--ink-muted)' }}>
-          Every step is a signed delta, so the bars add up to the bank credits exactly once.
-        </p>
+        <div className="flex items-start justify-between gap-4">
+          <div className="min-w-0">
+            <h1 className="text-lg font-semibold">Sales to bank</h1>
+            <p className="mt-1 text-sm" style={{ color: 'var(--ink-muted)' }}>
+              Every step is a signed delta, so the bars add up to the bank credits exactly once.
+            </p>
+          </div>
+          <StatementButton batchId={batchId} ready={narrative !== null} />
+        </div>
 
         <div className="card mt-5 p-5">
           <ResponsiveContainer width="100%" height={340}>
@@ -230,6 +235,57 @@ export function Waterfall({
         )}
       </motion.section>
     </motion.div>
+  )
+}
+
+/**
+ * Downloads the statement the backend renders.
+ *
+ * <p>Held back until the narration has landed, because the statement quotes it: offering the
+ * download earlier would hand the founder a PDF missing the one section written in their language.
+ */
+function StatementButton({ batchId, ready }: { batchId: string; ready: boolean }) {
+  const [downloading, setDownloading] = useState(false)
+  const [error, setError] = useState<unknown>(null)
+
+  async function download() {
+    if (downloading) return
+    setDownloading(true)
+    setError(null)
+    try {
+      const { blob, filename } = await api.statementPdf(batchId)
+      const url = URL.createObjectURL(blob)
+      const link = document.createElement('a')
+      link.href = url
+      link.download = filename
+      link.click()
+      // The browser has the bytes by now; holding the object URL open only leaks it.
+      URL.revokeObjectURL(url)
+    } catch (downloadError) {
+      setError(downloadError)
+    } finally {
+      setDownloading(false)
+    }
+  }
+
+  return (
+    <div className="shrink-0 text-right">
+      <button
+        type="button"
+        onClick={download}
+        disabled={!ready || downloading}
+        title={ready ? 'A one-page PDF for you and your accountant' : 'Available once the explanation has been written'}
+        className="rounded-md border px-3 py-1.5 text-xs font-medium transition-opacity disabled:cursor-not-allowed disabled:opacity-40"
+        style={{ borderColor: 'var(--line)', color: 'var(--ink)' }}
+      >
+        {downloading ? 'Preparing…' : 'Download statement (PDF)'}
+      </button>
+      {error != null && (
+        <p className="mt-1.5 text-[11px]" style={{ color: 'var(--lost)' }}>
+          {error instanceof ApiError ? error.hint : 'That download failed. Try again.'}
+        </p>
+      )}
+    </div>
   )
 }
 

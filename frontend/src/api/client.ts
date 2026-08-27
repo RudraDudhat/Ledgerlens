@@ -104,8 +104,31 @@ function safeDetail(body: string): string | null {
   }
 }
 
+/**
+ * The statement comes back as bytes, so it cannot go through request(), which parses JSON. The
+ * server names the file; the fallback only covers a proxy that drops the header.
+ */
+async function download(path: string): Promise<{ blob: Blob; filename: string }> {
+  let response: Response
+  try {
+    response = await fetch(path)
+  } catch {
+    throw new ApiError('Could not reach the backend.', 0, 'Check that the API is running on port 8080.')
+  }
+
+  if (!response.ok) {
+    const body = await response.text()
+    const detail = safeDetail(body) ?? response.statusText
+    throw new ApiError(detail, response.status, hintFor(response.status))
+  }
+
+  const named = /filename="([^"]+)"/.exec(response.headers.get('Content-Disposition') ?? '')
+  return { blob: await response.blob(), filename: named ? named[1] : 'ledgerlens-statement.pdf' }
+}
+
 function hintFor(status: number): string {
   if (status === 404) return 'That batch no longer exists. Upload the three files again.'
+  if (status === 409) return 'Run the reconciliation for this batch first.'
   if (status === 503) return 'This feature needs an API key. Set GEMINI_API_KEY and restart the backend.'
   if (status === 400) return 'Check the values you sent and try again.'
   if (status === 502) return 'The model rejected the request. Check GEMINI_API_KEY and the backend logs.'
@@ -137,6 +160,9 @@ export const api = {
   },
   narrative(batchId: string): Promise<NarrativeResponse> {
     return request<NarrativeResponse>(`/api/reconcile/${batchId}/narrative`)
+  },
+  statementPdf(batchId: string): Promise<{ blob: Blob; filename: string }> {
+    return download(`/api/reconcile/${batchId}/statement.pdf`)
   },
   forecast(batchId: string): Promise<ForecastEntry[]> {
     return request<ForecastEntry[]>(`/api/forecast/${batchId}`)
