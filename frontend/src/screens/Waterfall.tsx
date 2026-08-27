@@ -276,7 +276,7 @@ function StatementButton({ batchId, ready }: { batchId: string; ready: boolean }
         disabled={!ready || downloading}
         title={ready ? 'A one-page PDF for you and your accountant' : 'Available once the explanation has been written'}
         className="rounded-md border px-3 py-1.5 text-xs font-medium transition-opacity disabled:cursor-not-allowed disabled:opacity-40"
-        style={{ borderColor: 'var(--line)', color: 'var(--ink)' }}
+        style={{ background: 'var(--accent)', borderColor: 'var(--accent)', color: '#fff' }}
       >
         {downloading ? 'Preparing…' : 'Download statement (PDF)'}
       </button>
