@@ -8,7 +8,7 @@ import { StatusBadge, semanticColor } from '../components/StatusBadge'
 import { StatusStrip } from '../components/StatusStrip'
 import { SkeletonCards, SkeletonRows } from '../components/Skeleton'
 import { ErrorState } from '../components/States'
-import { percent, rupees, shortDate } from '../lib/format'
+import { rupees, shortDate } from '../lib/format'
 import { pageTransition } from '../lib/motion'
 
 export type Row = {
@@ -22,6 +22,11 @@ export type Row = {
   match?: MatchView
   exception?: ExceptionView
 }
+
+// Order, amount, method, status, settled, UTR, confidence. Equal columns pushed the
+// right-aligned amount hard against the method; these give each what it actually needs.
+const COLUMNS = '1.15fr 0.95fr 0.8fr 0.9fr 0.75fr 1.15fr 0.7fr'
+const RIGHT_ALIGNED = new Set([1, 6])
 
 const ROW_HEIGHT = 40
 const OVERSCAN = 8
@@ -155,22 +160,23 @@ export function Reconciliation({
   const visible = table.getRowModel().rows.slice(first, last)
 
   return (
-    <motion.div {...pageTransition} className="flex h-full flex-col p-8">
-      <div className="mb-5">
+    <motion.div {...pageTransition} className="flex h-full flex-col px-8 pb-6 pt-5">
+      <div className="mb-4">
         <HealthStrip batchId={batchId} onOpenAlert={onOpenAlert} />
       </div>
 
-      <div className="grid grid-cols-3 gap-4">
-        <StatCard label="Match rate" countUpTo={summary.orderMatchRate} format={percent} emphasis />
+      {/* Match rate lives in the health strip above, with its baseline and sparkline. Repeating it
+          here cost a whole row of height and told the reader nothing new. */}
+      <div className="grid grid-cols-2 gap-3">
         <StatCard label="Sales total" value={rupees(summary.grossSales)} />
         <StatCard label="Bank received" value={rupees(summary.totalBankCredits)} />
       </div>
 
-      <div className="mt-5">
+      <div className="mt-4">
         <StatusStrip counts={summary.countsByStatus} />
       </div>
 
-      <div className="mt-6 flex items-center gap-2">
+      <div className="mt-4 flex items-center gap-2">
         <div className="flex flex-wrap gap-1.5">
           <FilterChip label="all" count={rows.length} active={statusFilter === null} onClick={() => setStatusFilter(null)} />
           {Object.entries(summary.countsByStatus)
@@ -195,13 +201,13 @@ export function Reconciliation({
         />
       </div>
 
-      <div className="card mt-4 flex min-h-0 flex-1 flex-col overflow-hidden">
-        <div className="sticky top-0 z-10 grid border-b px-4" style={{ background: 'var(--surface-raised)', borderColor: 'var(--line)', gridTemplateColumns: 'repeat(7, minmax(0, 1fr))' }}>
+      <div className="card mt-3 flex min-h-0 flex-1 flex-col overflow-hidden">
+        <div className="sticky top-0 z-10 grid border-b px-4" style={{ background: 'var(--surface-raised)', borderColor: 'var(--line)', gridTemplateColumns: COLUMNS }}>
           {table.getHeaderGroups()[0]?.headers.map((header, index) => (
             <div
               key={header.id}
               className="truncate py-2 pr-3 text-xs font-medium uppercase tracking-wider"
-              style={{ color: 'var(--ink-faint)', textAlign: index === 1 || index === 6 ? 'right' : 'left' }}
+              style={{ color: 'var(--ink-faint)', textAlign: RIGHT_ALIGNED.has(index) ? 'right' : 'left' }}
             >
               {flexRender(header.column.columnDef.header, header.getContext())}
             </div>
@@ -228,13 +234,17 @@ export function Reconciliation({
                     style={{
                       top: index * ROW_HEIGHT,
                       height: ROW_HEIGHT,
-                      gridTemplateColumns: 'repeat(7, minmax(0, 1fr))',
+                      gridTemplateColumns: COLUMNS,
                       background: index === activeIndex ? 'var(--accent-soft)' : 'transparent',
                       borderBottom: '1px solid var(--line)',
                     }}
                   >
-                    {row.getVisibleCells().map((cell) => (
-                      <div key={cell.id} className="truncate pr-2">
+                    {row.getVisibleCells().map((cell, column) => (
+                      <div
+                        key={cell.id}
+                        className="truncate pr-3"
+                        style={{ textAlign: RIGHT_ALIGNED.has(column) ? 'right' : 'left' }}
+                      >
                         {flexRender(cell.column.columnDef.cell, cell.getContext())}
                       </div>
                     ))}
