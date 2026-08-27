@@ -21,7 +21,8 @@ public record AnswerKey(
         Totals totals,
         Map<String, Integer> anomalyCounts,
         List<Anomaly> anomalies,
-        List<FutureSettlement> expectedFutureSettlements) {
+        List<FutureSettlement> expectedFutureSettlements,
+        List<BatchAnomaly> batchAnomalies) {
 
     /** Every step of the sales-to-bank waterfall, as the generator actually built it. */
     public record Totals(

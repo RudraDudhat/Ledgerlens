@@ -5,6 +5,7 @@ import com.ledgerlens.entity.ExceptionStatus;
 import com.ledgerlens.entity.PaymentMethod;
 import com.ledgerlens.entity.PaymentStatus;
 import com.ledgerlens.dto.AnswerKey;
+import com.ledgerlens.dto.BatchProfile;
 import com.ledgerlens.dto.SyntheticDataset;
 import com.ledgerlens.dto.SyntheticDataset.BankRow;
 import com.ledgerlens.dto.SyntheticDataset.OrderRow;
@@ -55,25 +56,33 @@ public class SyntheticDataGenerator {
     private static final double PCT_AMOUNT_MISMATCH = 0.01;
 
     private static final int DISPUTE_RELEASE_DAYS = 14;
+    static final int NIGHT_FROM_HOUR = 2;
+    static final int NIGHT_TO_HOUR = 4;
+    static final double NIGHT_UPI_FAILURE_RATE = 0.35;
     private static final DisputeStatus[] DISPUTE_CYCLE = {DisputeStatus.WON, DisputeStatus.OPEN, DisputeStatus.LOST};
     private static final int[] PAISE_OPTIONS = {0, 0, 0, 25, 50, 75, 99};
     private static final BigDecimal ZERO = BigDecimal.ZERO.setScale(2, RoundingMode.UNNECESSARY);
     private static final DateTimeFormatter UTR_DATE = DateTimeFormatter.ofPattern("yyyyMMdd");
 
     public SyntheticDataset generate(int count, long seed) {
+        return generate(count, seed, BatchProfile.monthly(WINDOW_START));
+    }
+
+    /** The profile carries the window and any deliberate degradation; the default reproduces data/. */
+    public SyntheticDataset generate(int count, long seed, BatchProfile profile) {
         if (count < MIN_COUNT) {
             throw new IllegalArgumentException("count must be at least " + MIN_COUNT + " but was " + count);
         }
         Random rnd = new Random(seed);
 
-        List<Draft> drafts = draftOrders(count, rnd);
-        Selection selection = selectOrderAnomalies(count, drafts, rnd);
-        List<OrderRow> orders = buildOrders(drafts, selection);
-        List<RefundDraft> refunds = buildRefunds(orders, selection, rnd);
-        List<Batch> batches = buildBatches(orders, refunds);
+        List<Draft> drafts = draftOrders(count, rnd, profile);
+        Selection selection = selectOrderAnomalies(count, drafts, rnd, profile);
+        List<OrderRow> orders = buildOrders(drafts, selection, rnd, profile);
+        List<RefundDraft> refunds = buildRefunds(orders, selection, rnd, profile);
+        List<Batch> batches = buildBatches(orders, refunds, profile);
         BankPlan bankPlan = planBankAnomalies(count, batches, rnd);
         List<BankRow> bankRows = buildBankRows(batches, bankPlan);
-        AnswerKey answerKey = buildAnswerKey(count, seed, orders, refunds, batches, bankPlan);
+        AnswerKey answerKey = buildAnswerKey(count, seed, orders, refunds, batches, bankPlan, profile);
 
         List<SettlementRow> settlementRows = new ArrayList<>();
         batches.forEach(batch -> settlementRows.addAll(batch.lines()));
@@ -82,23 +91,23 @@ public class SyntheticDataGenerator {
 
     // ---------- orders ----------
 
-    private List<Draft> draftOrders(int count, Random rnd) {
+    private List<Draft> draftOrders(int count, Random rnd, BatchProfile profile) {
         List<Draft> drafts = new ArrayList<>(count);
         for (int i = 0; i < count; i++) {
-            LocalDateTime ts = WINDOW_START.plusDays(rnd.nextInt(WINDOW_DAYS))
-                    .atTime(8 + rnd.nextInt(13), rnd.nextInt(60), rnd.nextInt(60));
+            LocalDateTime ts = profile.windowStart().plusDays(rnd.nextInt(profile.windowDays()))
+                    .atTime(profile.earliestHour() + rnd.nextInt(profile.hourSpread()), rnd.nextInt(60), rnd.nextInt(60));
             drafts.add(new Draft(ts, randomAmount(rnd), randomMethod(rnd)));
         }
         drafts.sort(Comparator.comparing(Draft::ts));
         return drafts;
     }
 
-    private Selection selectOrderAnomalies(int count, List<Draft> drafts, Random rnd) {
-        int heldCount = share(count, PCT_HELD_DISPUTE);
+    private Selection selectOrderAnomalies(int count, List<Draft> drafts, Random rnd, BatchProfile profile) {
+        int heldCount = share(count, PCT_HELD_DISPUTE * profile.disputeMultiplier());
         int refundCount = share(count, PCT_REFUND_PRIOR_CYCLE);
         int failedCount = share(count, PCT_PAYMENT_FAILED);
 
-        LocalDate disputeFrom = WINDOW_START.plusDays(WINDOW_DAYS - DISPUTE_WINDOW_DAYS);
+        LocalDate disputeFrom = profile.windowStart().plusDays(profile.windowDays() - profile.disputeWindowDays());
         List<Integer> lateIndexes = new ArrayList<>();
         for (int i = 0; i < count; i++) {
             if (!drafts.get(i).ts().toLocalDate().isBefore(disputeFrom)) {
@@ -109,7 +118,7 @@ public class SyntheticDataGenerator {
         Collections.shuffle(lateIndexes, rnd);
         List<Integer> held = List.copyOf(lateIndexes.subList(0, heldCount));
 
-        LocalDate refundCutoff = WINDOW_START.plusDays(REFUND_MAX_DAY_OFFSET);
+        LocalDate refundCutoff = profile.windowStart().plusDays(profile.refundMaxDayOffset());
         List<Integer> earlyIndexes = new ArrayList<>();
         for (int i = 0; i < count; i++) {
             if (!held.contains(i) && !drafts.get(i).ts().toLocalDate().isAfter(refundCutoff)) {
@@ -133,7 +142,22 @@ public class SyntheticDataGenerator {
         return new Selection(failed, held, refunded);
     }
 
-    private List<OrderRow> buildOrders(List<Draft> drafts, Selection selection) {
+    private List<OrderRow> buildOrders(List<Draft> drafts, Selection selection, Random rnd, BatchProfile profile) {
+        // A nightly gateway outage: UPI alone, and only in the small hours. Applied after the normal
+        // selection and only when asked for, so an ordinary batch consumes no extra randomness and
+        // reproduces byte for byte.
+        Set<Integer> nightFailures = new LinkedHashSet<>();
+        if (profile.nightUpiFailures()) {
+            for (int i = 0; i < drafts.size(); i++) {
+                Draft draft = drafts.get(i);
+                int hour = draft.ts().getHour();
+                boolean atNight = hour >= NIGHT_FROM_HOUR && hour < NIGHT_TO_HOUR;
+                if (draft.method() == PaymentMethod.UPI && atNight && rnd.nextDouble() < NIGHT_UPI_FAILURE_RATE) {
+                    nightFailures.add(i);
+                }
+            }
+        }
+
         List<OrderRow> orders = new ArrayList<>(drafts.size());
         for (int i = 0; i < drafts.size(); i++) {
             Draft draft = drafts.get(i);
@@ -146,7 +170,7 @@ public class SyntheticDataGenerator {
                     draft.amount(),
                     String.format("pay_SYN%011d", i + 1),
                     draft.method(),
-                    selection.failed().contains(i) ? PaymentStatus.FAILED : PaymentStatus.CAPTURED,
+                    selection.failed().contains(i) || nightFailures.contains(i) ? PaymentStatus.FAILED : PaymentStatus.CAPTURED,
                     disputeStatus,
                     disputeOpenedAt));
         }
@@ -155,13 +179,13 @@ public class SyntheticDataGenerator {
 
     // ---------- refunds ----------
 
-    private List<RefundDraft> buildRefunds(List<OrderRow> orders, Selection selection, Random rnd) {
+    private List<RefundDraft> buildRefunds(List<OrderRow> orders, Selection selection, Random rnd, BatchProfile profile) {
         List<RefundDraft> refunds = new ArrayList<>();
         int sequence = 1;
         for (int index : selection.refunded()) {
             OrderRow order = orders.get(index);
             LocalDate settledOn = SettlementCalendar.settlementDate(order.method(), order.orderTs().toLocalDate());
-            LocalDate createdOn = settledOn.plusDays(2 + rnd.nextInt(5));
+            LocalDate createdOn = settledOn.plusDays(2 + rnd.nextInt(refundDelaySpread(profile)));
             BigDecimal amount = rnd.nextInt(100) < 60 ? order.amount() : partOf(order.amount(), 40 + rnd.nextInt(41));
             refunds.add(new RefundDraft(
                     String.format("rfnd_SYN%010d", sequence++),
@@ -174,7 +198,7 @@ public class SyntheticDataGenerator {
                     String.format("ORD-PRE-%04d", i + 1),
                     randomMethod(rnd),
                     randomAmount(rnd),
-                    WINDOW_START.plusDays(3 + rnd.nextInt(18)),
+                    profile.windowStart().plusDays(3 + rnd.nextInt(preWindowSpread(profile))),
                     true));
         }
         return refunds;
@@ -182,14 +206,14 @@ public class SyntheticDataGenerator {
 
     // ---------- settlement ----------
 
-    private List<Batch> buildBatches(List<OrderRow> orders, List<RefundDraft> refunds) {
+    private List<Batch> buildBatches(List<OrderRow> orders, List<RefundDraft> refunds, BatchProfile profile) {
         TreeMap<LocalDate, List<SettlementRow>> byDate = new TreeMap<>();
         for (OrderRow order : orders) {
             if (order.paymentStatus() != PaymentStatus.CAPTURED || order.disputeStatus() != null) {
                 continue;
             }
             LocalDate settledOn = SettlementCalendar.settlementDate(order.method(), order.orderTs().toLocalDate());
-            BigDecimal fee = FeeSchedule.fee(order.method(), order.amount());
+            BigDecimal fee = feeFor(profile, order.method(), order.amount());
             BigDecimal gst = FeeSchedule.gst(fee);
             byDate.computeIfAbsent(settledOn, date -> new ArrayList<>()).add(new SettlementRow(
                     utrFor(settledOn), settledOn, "payment", order.paymentId(), order.orderId(), order.method(),
@@ -216,12 +240,14 @@ public class SyntheticDataGenerator {
     // ---------- bank ----------
 
     private BankPlan planBankAnomalies(int count, List<Batch> batches, Random rnd) {
-        int duplicateCount = share(count, PCT_BANK_DUPLICATE);
-        int missingCount = share(count, PCT_BANK_MISSING);
-        int mismatchCount = share(count, PCT_AMOUNT_MISMATCH);
+        // Bank anomalies land on whole settlements, and a short window simply has fewer of them, so
+        // each kind is capped at a third of what exists. A month is unaffected by this.
+        int perKind = Math.max(0, batches.size() / 3);
+        int duplicateCount = Math.min(share(count, PCT_BANK_DUPLICATE), perKind);
+        int missingCount = Math.min(share(count, PCT_BANK_MISSING), perKind);
+        int mismatchCount = Math.min(share(count, PCT_AMOUNT_MISMATCH), perKind);
         require(batches.size() >= duplicateCount + missingCount + mismatchCount,
                 "not enough settlement batches to inject bank anomalies");
-
         List<Batch> shuffled = new ArrayList<>(batches);
         Collections.shuffle(shuffled, rnd);
         Set<String> duplicated = new LinkedHashSet<>();
@@ -264,7 +290,7 @@ public class SyntheticDataGenerator {
     // ---------- answer key ----------
 
     private AnswerKey buildAnswerKey(int count, long seed, List<OrderRow> orders, List<RefundDraft> refunds,
-                                     List<Batch> batches, BankPlan plan) {
+                                     List<Batch> batches, BankPlan plan, BatchProfile profile) {
         List<AnswerKey.Anomaly> anomalies = new ArrayList<>();
         BigDecimal grossSales = ZERO;
         BigDecimal failedAmount = ZERO;
@@ -282,7 +308,7 @@ public class SyntheticDataGenerator {
                         "payment failed at the gateway, so it never reached a settlement or the bank"));
                 continue;
             }
-            BigDecimal fee = FeeSchedule.fee(order.method(), order.amount());
+            BigDecimal fee = feeFor(profile, order.method(), order.amount());
             BigDecimal gst = FeeSchedule.gst(fee);
             BigDecimal net = FeeSchedule.net(order.amount(), fee, gst);
             totalFees = totalFees.add(fee);
@@ -367,11 +393,52 @@ public class SyntheticDataGenerator {
 
         AnswerKey.Totals totals = new AnswerKey.Totals(grossSales, failedAmount, totalFees, totalGst, heldNet,
                 refundsTotal, totalSettled, bankMissingTotal, bankDuplicateTotal, bankMismatchDelta, totalBankCredits);
-        return new AnswerKey(seed, count, WINDOW_START, WINDOW_START.plusDays(WINDOW_DAYS - 1L),
-                batches.get(batches.size() - 1).date(), totals, counts, List.copyOf(anomalies), List.copyOf(future));
+        return new AnswerKey(seed, count, profile.windowStart(), profile.windowStart().plusDays(profile.windowDays() - 1L),
+                batches.get(batches.size() - 1).date(), totals, counts, List.copyOf(anomalies), List.copyOf(future),
+                batchAnomaliesOf(profile));
     }
 
     // ---------- helpers ----------
+
+    /**
+     * A refund must land in a later cycle than its payment but still inside the batch, so the delay
+     * has to shrink with the window. The monthly default keeps its original spread of five days.
+     */
+    private static int refundDelaySpread(BatchProfile profile) {
+        return Math.max(1, Math.min(5, profile.windowDays() - 4));
+    }
+
+    private static int preWindowSpread(BatchProfile profile) {
+        return Math.max(1, profile.windowDays() - 13);
+    }
+
+    /** A degraded batch is charged a card rate nobody agreed to; everything else uses the schedule. */
+    private static BigDecimal feeFor(BatchProfile profile, PaymentMethod method, BigDecimal amount) {
+        if (method == PaymentMethod.CARD && profile.cardFeeRateOverride() != null) {
+            return amount.multiply(profile.cardFeeRateOverride()).setScale(2, RoundingMode.HALF_UP);
+        }
+        return FeeSchedule.fee(method, amount);
+    }
+
+    /** What was deliberately broken, named exactly as the detector would name it. */
+    private static List<com.ledgerlens.dto.BatchAnomaly> batchAnomaliesOf(BatchProfile profile) {
+        List<com.ledgerlens.dto.BatchAnomaly> injected = new ArrayList<>();
+        if (profile.cardFeeRateOverride() != null) {
+            injected.add(new com.ledgerlens.dto.BatchAnomaly("fee_rate",
+                    "card fee rate raised to " + profile.cardFeeRateOverride()));
+        }
+        if (profile.disputeMultiplier() > 1.0) {
+            injected.add(new com.ledgerlens.dto.BatchAnomaly("dispute_rate",
+                    "dispute rate multiplied by " + profile.disputeMultiplier()));
+        }
+        if (profile.nightUpiFailures()) {
+            for (int hour = NIGHT_FROM_HOUR; hour < NIGHT_TO_HOUR; hour++) {
+                injected.add(new com.ledgerlens.dto.BatchAnomaly("failure_rate_hour_%02d".formatted(hour),
+                        "UPI failures forced to " + NIGHT_UPI_FAILURE_RATE + " between 02:00 and 04:00"));
+            }
+        }
+        return List.copyOf(injected);
+    }
 
     private static int share(int count, double percentage) {
         return (int) Math.round(count * percentage);
