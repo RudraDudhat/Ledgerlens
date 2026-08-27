@@ -152,7 +152,7 @@ function HealthCard({
         {value}
       </p>
 
-      <Sparkline points={points} tone={alert ? tone : 'var(--ink-faint)'} reduced={reduced} />
+      <Sparkline points={points} tone={alert ? tone : 'var(--ink-muted)'} reduced={reduced} />
 
       <p className="mt-1 truncate text-[11px]" style={{ color: 'var(--ink-faint)' }}>
         {alert ? `${alert.ratio.toFixed(1)}× baseline` : (delta ?? 'no baseline yet')}
@@ -161,7 +161,18 @@ function HealthCard({
   )
 }
 
-/** Eight points at most, drawn once on mount. Shape only — the number above it carries the value. */
+const TRACK_PX = 24
+const FLOOR_PX = 7
+
+/**
+ * Eight batches at most, one bar each, the last being this batch. Shape only — the number above it
+ * carries the value.
+ *
+ * <p>Bars rather than a line because at 24px a 1.5px stroke is barely a mark, and because a flat
+ * history has to look like a deliberate answer. A run of identical readings draws a level row at
+ * mid-height; the earlier drawing put it hard against the bottom edge, where it read as a stray rule
+ * rather than as "steady". Every bar keeps a floor, so the lowest batch is still a bar.
+ */
 function Sparkline({ points, tone, reduced }: { points: number[]; tone: string; reduced: boolean }) {
   const recent = points.slice(-8)
   if (recent.length < 2) {
@@ -170,27 +181,26 @@ function Sparkline({ points, tone, reduced }: { points: number[]; tone: string; 
 
   const highest = Math.max(...recent)
   const lowest = Math.min(...recent)
-  const span = highest - lowest || 1
-  const path = recent
-    .map((value, index) => {
-      const x = (index / (recent.length - 1)) * 100
-      const y = 24 - ((value - lowest) / span) * 22 - 1
-      return `${index === 0 ? 'M' : 'L'}${x.toFixed(2)},${y.toFixed(2)}`
-    })
-    .join(' ')
+  const span = highest - lowest
 
   return (
-    <svg viewBox="0 0 100 24" preserveAspectRatio="none" className="mt-1.5 h-6 w-full" aria-hidden="true">
-      <motion.path
-        d={path}
-        fill="none"
-        stroke={tone}
-        strokeWidth={1.5}
-        vectorEffect="non-scaling-stroke"
-        initial={reduced ? false : { pathLength: 0 }}
-        animate={{ pathLength: 1 }}
-        transition={{ duration: 0.5, ease: 'easeOut' }}
-      />
-    </svg>
+    <div className="mt-1.5 flex h-6 items-end gap-[3px]" aria-hidden="true">
+      {recent.map((value, index) => {
+        const height =
+          span === 0 ? TRACK_PX * 0.55 : FLOOR_PX + ((value - lowest) / span) * (TRACK_PX - FLOOR_PX)
+        // This batch is the one the card is about; the rest are context behind it.
+        const current = index === recent.length - 1
+        return (
+          <motion.span
+            key={index}
+            className="block min-w-0 flex-1 rounded-[1.5px]"
+            style={{ background: tone, opacity: current ? 1 : 0.4 }}
+            initial={reduced ? false : { height: 0 }}
+            animate={{ height }}
+            transition={{ duration: 0.3, ease: 'easeOut', delay: reduced ? 0 : index * 0.03 }}
+          />
+        )
+      })}
+    </div>
   )
 }
