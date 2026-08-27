@@ -57,8 +57,12 @@ public class StatementPdfService {
 
     static final String STATEMENT_ACTION = "STATEMENT_PDF";
 
-    /** At most this many exception rows, then a line saying how many were left out. */
-    public static final int EXCEPTION_ROW_CAP = 15;
+    /**
+     * At most this many exception rows, then a line saying how many were left out. Sized so that the
+     * worst case — every row in its own group, plus the three summary lines under them — still lands
+     * on the second page at the spacing the stylesheet sets.
+     */
+    public static final int EXCEPTION_ROW_CAP = 12;
 
     /** As much narration as page one has room for, measured against a full ten-row waterfall. */
     static final int NARRATIVE_CHAR_CAP = 900;
