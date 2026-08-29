@@ -26,6 +26,26 @@ export function pendingNarrative(batchId: string): Promise<string> | null {
 /** The one path that may spend a second call, and only because someone asked for it. */
 export function retryNarrative(batchId: string): Promise<string> {
   inFlight.delete(batchId)
+  revealed.delete(batchId)
   prefetchNarrative(batchId)
   return inFlight.get(batchId)!
+}
+
+/**
+ * Which batches have already had their narration typed out.
+ *
+ * <p>The reveal exists to show the words arriving. Once they have arrived, replaying it every time
+ * the screen is reopened makes the same paragraph look like it is being written again, and makes
+ * the reader wait to reread something they have already read. Kept here rather than in the screen
+ * because the screen unmounts on navigation and takes any state it held with it.
+ */
+const revealed = new Set<string>()
+
+export function hasRevealedNarrative(batchId: string): boolean {
+  return revealed.has(batchId)
+}
+
+/** Called once the reveal actually finishes, so leaving halfway through does not count as seen. */
+export function markNarrativeRevealed(batchId: string): void {
+  revealed.add(batchId)
 }

@@ -6,7 +6,12 @@ import { Skeleton, SkeletonCards } from '../components/Skeleton'
 import { ErrorState } from '../components/States'
 import { rupees, signedRupees } from '../lib/format'
 import { BAR_STAGGER_SECONDS, pageTransition, usePrefersReducedMotion, useTypewriter } from '../lib/motion'
-import { pendingNarrative, retryNarrative } from '../lib/narrative'
+import {
+  hasRevealedNarrative,
+  markNarrativeRevealed,
+  pendingNarrative,
+  retryNarrative,
+} from '../lib/narrative'
 
 type Plotted = WaterfallStep & { base: number; magnitude: number; running: number; color: string }
 
@@ -211,7 +216,9 @@ export function Waterfall({
 
         {narrative === null && narrativeError == null && <Skeleton className="mt-3 h-28 w-full" />}
 
-        {narrative !== null && <NarrativeText text={narrative} onOpenRows={onOpenRows} />}
+        {narrative !== null && (
+          <NarrativeText batchId={batchId} text={narrative} onOpenRows={onOpenRows} />
+        )}
 
         {narrativeError != null && (
           <div className="mt-3">
@@ -300,8 +307,22 @@ const NARRATION_TOKENS = /(\brow \d+\b|₹[\d,]+(?:\.\d+)?)/gi
  * <p>The text is paced out word by word. It has already arrived in full — this only shows it being
  * written, and a chip or an amount forms as soon as the word carrying it lands.
  */
-function NarrativeText({ text, onOpenRows }: { text: string; onOpenRows: (title: string, rowIds: number[]) => void }) {
-  const { shown, done } = useTypewriter(text)
+function NarrativeText({
+  batchId,
+  text,
+  onOpenRows,
+}: {
+  batchId: string
+  text: string
+  onOpenRows: (title: string, rowIds: number[]) => void
+}) {
+  // Decided once, at mount: whether this batch has been read before does not change while reading it.
+  const [animate] = useState(() => !hasRevealedNarrative(batchId))
+  const { shown, done } = useTypewriter(text, animate)
+
+  useEffect(() => {
+    if (done) markNarrativeRevealed(batchId)
+  }, [done, batchId])
   const parts = shown.split(NARRATION_TOKENS)
   return (
     <p className="mt-3 max-w-[68ch] text-sm leading-7" style={{ color: 'var(--ink-muted)' }}>

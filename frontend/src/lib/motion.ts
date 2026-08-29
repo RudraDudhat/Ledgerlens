@@ -67,14 +67,14 @@ export function useCountUp(target: number, durationMs = 700): number {
  * once reads as a page that was always there. Revealing it word by word shows that a model wrote it,
  * and shows it arriving now. Nothing is fetched here — this is presentation only.
  */
-export function useTypewriter(text: string, wordsPerSecond = 14): { shown: string; done: boolean } {
+export function useTypewriter(text: string, animate = true, wordsPerSecond = 14): { shown: string; done: boolean } {
   const reduced = usePrefersReducedMotion()
   // Trailing whitespace rides along with its word, so joining the slice rebuilds the text exactly.
   const words = useMemo(() => text.match(/\S+\s*/g) ?? [], [text])
   const [count, setCount] = useState(0)
 
   useEffect(() => {
-    if (reduced || words.length === 0) {
+    if (!animate || reduced || words.length === 0) {
       setCount(words.length)
       return
     }
@@ -88,7 +88,7 @@ export function useTypewriter(text: string, wordsPerSecond = 14): { shown: strin
     }
     frame = requestAnimationFrame(step)
     return () => cancelAnimationFrame(frame)
-  }, [words, reduced, wordsPerSecond])
+  }, [words, animate, reduced, wordsPerSecond])
 
   return { shown: words.slice(0, count).join(''), done: count >= words.length }
 }
