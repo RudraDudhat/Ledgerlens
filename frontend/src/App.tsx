@@ -121,7 +121,6 @@ export default function App() {
           onToggle={() => setAskOpen((open) => !open)}
           pendingQuestion={pendingQuestion}
           onPendingConsumed={() => setPendingQuestion(null)}
-          onOpenRows={(rowIds) => openRows(`row ${rowIds.join(', ')}`, rowIds)}
         />
       )}
 

@@ -59,22 +59,21 @@ export function Drawer({
           </div>
 
           {subject.kind === 'rows' ? (
+            /*
+             * This used to print the ids themselves, a grid of five-digit numbers. They are database
+             * keys: they appear on no export, no statement and nothing the merchant can look up, and
+             * a wall of them reads as an evidence trail while being unreadable. Only the count is
+             * worth stating here; the rows themselves are readable in Reconciliation.
+             */
             <div className="mt-6">
-              <p className="text-xs" style={{ color: 'var(--ink-muted)' }}>
-                {subject.rowIds.length} source rows contributed to this step.
+              <p className="text-sm">
+                {subject.rowIds.length} {subject.rowIds.length === 1 ? 'row' : 'rows'} add up to this
+                step.
               </p>
-              <ul className="mt-3 grid grid-cols-4 gap-1">
-                {subject.rowIds.slice(0, 200).map((id) => (
-                  <li key={id} className="ref rounded px-1.5 py-1 text-center" style={{ background: 'var(--line)' }}>
-                    {id}
-                  </li>
-                ))}
-              </ul>
-              {subject.rowIds.length > 200 && (
-                <p className="mt-2 text-xs" style={{ color: 'var(--ink-faint)' }}>
-                  showing the first 200 of {subject.rowIds.length}
-                </p>
-              )}
+              <p className="mt-2 text-xs leading-relaxed" style={{ color: 'var(--ink-muted)' }}>
+                They are the orders, payouts and bank credits behind it. Open Reconciliation to read
+                them one by one, with the order id and UTR on each.
+              </p>
             </div>
           ) : subject.kind === 'alert' ? (
             <AlertDetail subject={subject} />
@@ -260,17 +259,12 @@ function AlertDetail({ subject }: { subject: Extract<DrawerSubject, { kind: 'ale
         </p>
       )}
 
+      {/* The count, not the keys: see the note on the rows drawer above. */}
       <div className="mt-6">
         <p className="text-xs" style={{ color: 'var(--ink-faint)' }}>
-          {alert.sourceRowIds.length} rows driving this
+          Measured across {alert.sourceRowIds.length} {alert.sourceRowIds.length === 1 ? 'row' : 'rows'} in
+          this batch
         </p>
-        <ul className="mt-2 grid grid-cols-5 gap-1">
-          {alert.sourceRowIds.map((id) => (
-            <li key={id} className="ref rounded px-1 py-1 text-center" style={{ background: 'var(--line)' }}>
-              {id}
-            </li>
-          ))}
-        </ul>
       </div>
     </div>
   )

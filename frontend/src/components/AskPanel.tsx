@@ -338,7 +338,7 @@ function CitationChip({ citation }: { citation: Citation }) {
           {citation.note}
         </span>
       )}
-    </button>
+    </div>
   )
 }
 
