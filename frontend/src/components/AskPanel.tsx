@@ -3,7 +3,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { ApiError, api, type AskResponse, type Citation } from '../api/client'
 import { rupees, shortDate } from '../lib/format'
 import { useTypewriter } from '../lib/motion'
-import { Skeleton } from './Skeleton'
+import { Thinking } from './States'
 
 const SUGGESTIONS = [
   { question: "Why was Tuesday's settlement short?", hint: 'names a day' },
@@ -170,14 +170,7 @@ export function AskPanel({
                   </p>
                 </div>
 
-                {turn.answer === null && turn.error === null && (
-                  <div>
-                    <p className="mb-2 text-xs" style={{ color: 'var(--ink-faint)' }}>
-                      Reading the rows…
-                    </p>
-                    <Skeleton className="h-20 w-full" />
-                  </div>
-                )}
+                {turn.answer === null && turn.error === null && <Thinking label="Reading the rows…" />}
 
                 {turn.answer && (
                   <Answer

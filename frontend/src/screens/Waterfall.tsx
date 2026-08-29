@@ -3,7 +3,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { Bar, BarChart, Cell, ResponsiveContainer, Tooltip, XAxis } from 'recharts'
 import { ApiError, api, type WaterfallStep } from '../api/client'
 import { Skeleton, SkeletonCards } from '../components/Skeleton'
-import { ErrorState } from '../components/States'
+import { ErrorState, Thinking } from '../components/States'
 import { rupees, signedRupees } from '../lib/format'
 import { BAR_STAGGER_SECONDS, pageTransition, usePrefersReducedMotion, useTypewriter } from '../lib/motion'
 import {
@@ -214,7 +214,11 @@ export function Waterfall({
       >
         <h2 className="text-sm font-semibold">What happened</h2>
 
-        {narrative === null && narrativeError == null && <Skeleton className="mt-3 h-28 w-full" />}
+        {narrative === null && narrativeError == null && (
+          <div className="mt-3">
+            <Thinking label="Writing the explanation…" />
+          </div>
+        )}
 
         {narrative !== null && (
           <NarrativeText batchId={batchId} text={narrative} onOpenRows={onOpenRows} />

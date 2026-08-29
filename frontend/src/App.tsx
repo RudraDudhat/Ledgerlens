@@ -83,7 +83,7 @@ export default function App() {
 
         {batchId && (
           <p className="ref mt-auto px-3 pt-6" style={{ color: 'var(--ink-faint)' }}>
-            batch {batchId.slice(0, 8)}
+            Reference {batchId.slice(0, 8)}
           </p>
         )}
       </nav>

@@ -92,6 +92,10 @@
 
     p.plain { margin: 0; line-height: 1.65; }
 
+    /* Amounts inside the prose, set to match the table above: the same rupee figure should look the
+       same in both halves of the page, and be findable without reading the sentence around it. */
+    .figure { font-weight: bold; white-space: nowrap; }
+
     .group { margin-top: 14pt; }
     .group-head { font-weight: bold; font-size: 9pt; margin-bottom: 1pt; }
     .group-why { font-size: 8.5pt; color: #444444; line-height: 1.5; margin: 2pt 0 5pt 0; }
@@ -127,7 +131,7 @@
   <div class="merchant">{{merchant}}</div>
   <h1>Settlement Statement</h1>
   <div class="meta">{{period}} &#183; generated {{generatedAt}}</div>
-  <div class="batch">batch {{batchId}}</div>
+  <div class="batch">Statement reference {{reference}}</div>
 </div>
 
 <p class="headline">{{headline}}</p>

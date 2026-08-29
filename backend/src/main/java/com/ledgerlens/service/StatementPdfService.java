@@ -42,6 +42,8 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.UUID;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
 /**
@@ -66,6 +68,9 @@ public class StatementPdfService {
 
     /** As much narration as page one has room for, measured against a full ten-row waterfall. */
     static final int NARRATIVE_CHAR_CAP = 900;
+
+    /** A rupee amount as the model writes it, grouped or not, so the statement can regroup it. */
+    private static final Pattern NARRATION_AMOUNT = Pattern.compile("₹([\\d,]+(?:\\.\\d+)?)");
 
     private static final String FONT_FAMILY = "DejaVu Sans";
     private static final String FONT_REGULAR = "net/sf/jasperreports/fonts/dejavu/DejaVuSans.ttf";
@@ -203,7 +208,10 @@ public class StatementPdfService {
                 .replace("{{merchant}}", escape(merchantName))
                 .replace("{{period}}", escape(period.label()))
                 .replace("{{generatedAt}}", escape(LocalDateTime.now().format(STAMP)))
-                .replace("{{batchId}}", escape(batchId.toString()))
+                // Short and labelled as a reference. The full id is a database key: printing all
+                // thirty-six characters of it on a founder's statement says nothing to them, and the
+                // audit log already holds it in full for anyone tracing the run.
+                .replace("{{reference}}", escape(batchId.toString().substring(0, 8)))
                 .replace("{{headline}}", headline(sales, received))
                 .replace("{{waterfallRows}}", waterfallRows(steps, sales, received))
                 .replace("{{reconcileNote}}", reconcileNote(steps, received))
@@ -267,9 +275,36 @@ public class StatementPdfService {
 
     private static String plainWords(Optional<String> narrative) {
         return narrative
-                .map(text -> "<p class=\"plain\">" + escape(fitToPage(text)) + "</p>")
+                .map(text -> "<p class=\"plain\">" + highlightAmounts(escape(fitToPage(text))) + "</p>")
                 .orElse("<p class=\"empty\">No plain-words summary was written for this batch. "
                         + "Every number above is computed from your files and is unaffected.</p>");
+    }
+
+    /**
+     * Regroups and picks out every rupee amount the narration mentions.
+     *
+     * <p>The model is told to write amounts with a rupee sign, and it writes them the way it read
+     * them: ₹1554691.47. The table three inches above says ₹15,54,691.47 for the same money, and no
+     * reader should have to count digits to see that those are the same number. Regrouped here
+     * rather than in the prompt because grouping is presentation, and a model asked to punctuate
+     * lakhs is a model given one more thing to get wrong about someone's money.
+     */
+    private static String highlightAmounts(String escaped) {
+        Matcher matcher = NARRATION_AMOUNT.matcher(escaped);
+        StringBuilder out = new StringBuilder();
+        while (matcher.find()) {
+            String replacement;
+            try {
+                BigDecimal value = new BigDecimal(matcher.group(1).replace(",", ""));
+                replacement = "<span class=\"figure\">" + rupees(value) + "</span>";
+            } catch (NumberFormatException e) {
+                // Not a number after all; leave whatever the model wrote exactly as it wrote it.
+                replacement = matcher.group();
+            }
+            matcher.appendReplacement(out, Matcher.quoteReplacement(replacement));
+        }
+        matcher.appendTail(out);
+        return out.toString();
     }
 
     /**

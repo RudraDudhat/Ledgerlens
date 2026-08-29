@@ -68,6 +68,25 @@
       opacity: 0;
     }
   }
+
+  /* Slow enough to read as breathing rather than blinking. The global reduced-motion rule stops it
+     on the closing frame, which is a dimmed star — still legible as "not finished". */
+  .thinking-glyph {
+    transform-origin: center;
+    animation: thinking-pulse 1.6s ease-in-out infinite;
+  }
+
+  @keyframes thinking-pulse {
+    0%,
+    100% {
+      opacity: 0.4;
+      transform: scale(0.8) rotate(0deg);
+    }
+    50% {
+      opacity: 1;
+      transform: scale(1) rotate(90deg);
+    }
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {
