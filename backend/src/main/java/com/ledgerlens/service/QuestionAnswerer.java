@@ -1,6 +1,8 @@
 package com.ledgerlens.service;
 
 import com.ledgerlens.dto.AskResponse;
+import com.ledgerlens.dto.Citation;
+import com.ledgerlens.dto.ModelAnswer;
 import com.ledgerlens.entity.BankEntry;
 import com.ledgerlens.entity.ExceptionRecord;
 import com.ledgerlens.entity.MerchantOrder;
@@ -74,30 +76,36 @@ public class QuestionAnswerer {
             throw new ResponseStatusException(HttpStatus.NOT_FOUND, "unknown batch " + batchId);
         }
 
-        Map<Long, String> rows = retrieve(batchId, question);
+        Map<Long, Retrieved> rows = retrieve(batchId, question);
         if (rows.isEmpty()) {
-            return new AskResponse(NOTHING_FOUND, List.of());
+            return new AskResponse(NOTHING_FOUND, List.of(), List.of());
         }
 
         String rendered = rows.entrySet().stream()
-                .map(row -> "[%d] %s".formatted(row.getKey(), row.getValue()))
+                .map(row -> "[%d] %s".formatted(row.getKey(), row.getValue().rendered()))
                 .reduce((a, b) -> a + "\n" + b)
                 .orElse("");
         String prompt = template.replace("{{question}}", question).replace("{{rows}}", rendered);
-        AskResponse answer = llm.completeAs(batchId, "LLM_ASK", prompt, AskResponse.class);
+        ModelAnswer answer = llm.completeAs(batchId, "LLM_ASK", prompt, ModelAnswer.class);
 
         if (answer == null || answer.answer() == null || answer.answer().isBlank()) {
-            return new AskResponse(NOTHING_FOUND, List.of());
+            return new AskResponse(NOTHING_FOUND, List.of(), List.of());
         }
+        // Only ids that were actually handed over survive: the model cannot cite a row it never saw.
         List<Long> cited = answer.citedRowIds() == null
                 ? List.of()
                 : answer.citedRowIds().stream().filter(rows::containsKey).toList();
-        return new AskResponse(answer.answer().trim(), cited);
+        List<Citation> citations = cited.stream().map(id -> rows.get(id).citation()).toList();
+        return new AskResponse(answer.answer().trim(), cited, citations);
+    }
+
+    /** One retrieved row, in both the form the model reads and the form a person reads. */
+    private record Retrieved(String rendered, Citation citation) {
     }
 
     /** Looks up exactly what the question names, so every row offered can be traced back to it. */
-    private Map<Long, String> retrieve(UUID batchId, String question) {
-        Map<Long, String> rows = new LinkedHashMap<>();
+    private Map<Long, Retrieved> retrieve(UUID batchId, String question) {
+        Map<Long, Retrieved> rows = new LinkedHashMap<>();
 
         for (String orderId : matches(ORDER_ID, question)) {
             orderRepository.findByBatchIdAndOrderId(batchId, orderId)
@@ -152,23 +160,39 @@ public class QuestionAnswerer {
         }
     }
 
-    private static String describe(MerchantOrder order) {
-        return "order orderId=%s placedAt=%s amount=%s"
-                .formatted(order.getOrderId(), order.getOrderTs(), order.getAmount());
+    // The rendered halves are unchanged: they are what the model has always been shown, and the
+    // citation beside each one only names the same row the way the merchant's own records do.
+
+    private static Retrieved describe(MerchantOrder order) {
+        return new Retrieved(
+                "order orderId=%s placedAt=%s amount=%s"
+                        .formatted(order.getOrderId(), order.getOrderTs(), order.getAmount()),
+                new Citation(order.getId(), "ORDER", order.getOrderId(), order.getAmount(),
+                        order.getOrderTs() == null ? null : order.getOrderTs().toLocalDate(), null));
     }
 
-    private static String describe(SettlementBatch settlement) {
-        return "settlement utr=%s settledOn=%s amount=%s"
-                .formatted(settlement.getUtr(), settlement.getSettledOn(), settlement.getAmount());
+    private static Retrieved describe(SettlementBatch settlement) {
+        return new Retrieved(
+                "settlement utr=%s settledOn=%s amount=%s"
+                        .formatted(settlement.getUtr(), settlement.getSettledOn(), settlement.getAmount()),
+                new Citation(settlement.getId(), "SETTLEMENT", settlement.getUtr(), settlement.getAmount(),
+                        settlement.getSettledOn(), null));
     }
 
-    private static String describe(BankEntry entry) {
-        return "bankCredit date=%s utr=%s amount=%s narration=%s"
-                .formatted(entry.getEntryDate(), entry.getUtr(), entry.getAmount(), entry.getDescription());
+    private static Retrieved describe(BankEntry entry) {
+        return new Retrieved(
+                "bankCredit date=%s utr=%s amount=%s narration=%s"
+                        .formatted(entry.getEntryDate(), entry.getUtr(), entry.getAmount(), entry.getDescription()),
+                new Citation(entry.getId(), "BANK_CREDIT", entry.getUtr(), entry.getAmount(),
+                        entry.getEntryDate(), entry.getDescription()));
     }
 
-    private static String describe(ExceptionRecord record) {
-        return "exception status=%s entity=%s confidence=%s reason=%s"
-                .formatted(record.getStatus(), record.getEntityRef(), record.getConfidence(), record.getReason());
+    private static Retrieved describe(ExceptionRecord record) {
+        return new Retrieved(
+                "exception status=%s entity=%s confidence=%s reason=%s"
+                        .formatted(record.getStatus(), record.getEntityRef(), record.getConfidence(),
+                                record.getReason()),
+                new Citation(record.getId(), "EXCEPTION", record.getEntityRef(), null, null,
+                        "%s — %s".formatted(record.getStatus(), record.getReason())));
     }
 }

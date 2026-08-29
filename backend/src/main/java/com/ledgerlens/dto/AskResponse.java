@@ -3,8 +3,10 @@ package com.ledgerlens.dto;
 import java.util.List;
 
 /**
- * An answer grounded in retrieved rows. An empty citedRowIds means nothing in the batch supported an
- * answer, which the answer itself says plainly rather than papering over.
+ * An answer and the rows it stands on.
+ *
+ * @param citedRowIds the raw row ids, kept for the metrics and the audit trail
+ * @param citations   the same rows named the way the merchant names them, for anyone reading
  */
-public record AskResponse(String answer, List<Long> citedRowIds) {
+public record AskResponse(String answer, List<Long> citedRowIds, List<Citation> citations) {
 }

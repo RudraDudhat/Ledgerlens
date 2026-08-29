@@ -1,6 +1,8 @@
 import { motion } from 'framer-motion'
-import { useEffect, useRef, useState } from 'react'
-import { ApiError, api, type AskResponse } from '../api/client'
+import { useCallback, useEffect, useRef, useState } from 'react'
+import { ApiError, api, type AskResponse, type Citation } from '../api/client'
+import { rupees, shortDate } from '../lib/format'
+import { useTypewriter } from '../lib/motion'
 import { Skeleton } from './Skeleton'
 
 const SUGGESTIONS = [
@@ -9,11 +11,15 @@ const SUGGESTIONS = [
   { question: 'What happened to order ORD-000042?', hint: 'names an order' },
 ]
 
-type Exchange = { question: string; answer: AskResponse | null; error: unknown | null }
+type Turn = { id: number; question: string; answer: AskResponse | null; error: unknown | null }
 
 /**
- * One question, one answer. Cited row ids are chips rather than prose, so an answer can always be
- * checked against the rows it came from; a refusal is shown as-is with a hint, never dressed up.
+ * A conversation about one batch. Cited row ids are chips rather than prose, so an answer can always
+ * be checked against the rows it came from; a refusal is shown as-is with a hint, never dressed up.
+ *
+ * <p>Every turn stays on screen. An answer read three questions ago is often the reason for the
+ * question being typed now, and throwing it away to make room for the next one is what made this a
+ * lookup box rather than somewhere to think.
  */
 export function AskPanel({
   batchId,
@@ -21,19 +27,32 @@ export function AskPanel({
   onToggle,
   pendingQuestion,
   onPendingConsumed,
-  onOpenRows,
 }: {
   batchId: string
   open: boolean
   onToggle: () => void
   pendingQuestion: string | null
   onPendingConsumed: () => void
-  onOpenRows: (rowIds: number[]) => void
 }) {
   const [question, setQuestion] = useState('')
-  const [exchange, setExchange] = useState<Exchange | null>(null)
+  const [turns, setTurns] = useState<Turn[]>([])
   const [asking, setAsking] = useState(false)
   const inputRef = useRef<HTMLInputElement>(null)
+  const bodyRef = useRef<HTMLDivElement>(null)
+  const nextId = useRef(0)
+  // Survives the panel being collapsed, so reopening does not retype every answer at once.
+  const revealed = useRef(new Set<number>())
+
+  const scrollToBottom = useCallback(() => {
+    const body = bodyRef.current
+    if (body) body.scrollTop = body.scrollHeight
+  }, [])
+
+  // A new batch is a different subject; carrying the old conversation into it would cite dead rows.
+  useEffect(() => {
+    setTurns([])
+    revealed.current.clear()
+  }, [batchId])
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
@@ -62,19 +81,25 @@ export function AskPanel({
     onPendingConsumed()
   }, [pendingQuestion, open, onToggle, onPendingConsumed])
 
+  useEffect(() => {
+    if (open) scrollToBottom()
+  }, [open, turns.length, scrollToBottom])
+
   async function submit(asked: string) {
     const trimmed = asked.trim()
     if (!trimmed || asking) return
+    const id = nextId.current++
     setAsking(true)
-    setExchange({ question: trimmed, answer: null, error: null })
+    setQuestion('')
+    setTurns((current) => [...current, { id, question: trimmed, answer: null, error: null }])
     try {
       const answer = await api.ask(batchId, trimmed)
-      setExchange({ question: trimmed, answer, error: null })
+      setTurns((current) => current.map((turn) => (turn.id === id ? { ...turn, answer } : turn)))
     } catch (error) {
-      setExchange({ question: trimmed, answer: null, error })
+      setTurns((current) => current.map((turn) => (turn.id === id ? { ...turn, error } : turn)))
     } finally {
       setAsking(false)
-      setQuestion('')
+      inputRef.current?.focus()
     }
   }
 
@@ -101,86 +126,83 @@ export function AskPanel({
             Answered only from rows in this batch
           </p>
         </div>
-        <button
-          type="button"
-          onClick={onToggle}
-          className="rounded p-1 text-sm leading-none"
-          style={{ color: 'var(--ink-faint)' }}
-          aria-label="Close (Esc)"
-          title="Close (Esc)"
-        >
-          ✕
-        </button>
+        <div className="flex items-center gap-1">
+          {turns.length > 0 && (
+            <button
+              type="button"
+              onClick={() => {
+                setTurns([])
+                revealed.current.clear()
+              }}
+              className="rounded px-1.5 py-1 text-xs"
+              style={{ color: 'var(--ink-faint)' }}
+              title="Clear this conversation"
+            >
+              Clear
+            </button>
+          )}
+          <button
+            type="button"
+            onClick={onToggle}
+            className="rounded p-1 text-sm leading-none"
+            style={{ color: 'var(--ink-faint)' }}
+            aria-label="Close (Esc)"
+            title="Close (Esc)"
+          >
+            ✕
+          </button>
+        </div>
       </header>
 
-      <div className="flex-1 overflow-y-auto p-4">
-        {!exchange && <EmptyState onPick={submit} />}
-
-        {exchange && (
-          <div className="space-y-4">
-            <div className="flex justify-end">
-              <p
-                className="max-w-[85%] rounded-2xl rounded-br-sm px-3 py-2 text-sm"
-                style={{ background: 'var(--accent-soft)', color: 'var(--accent)' }}
-              >
-                {exchange.question}
-              </p>
-            </div>
-
-            {asking && (
-              <div>
-                <p className="mb-2 text-xs" style={{ color: 'var(--ink-faint)' }}>
-                  Reading the rows…
-                </p>
-                <Skeleton className="h-20 w-full" />
-              </div>
-            )}
-
-            {exchange.answer && (
-              <div>
-                <p className="text-sm leading-relaxed">{exchange.answer.answer}</p>
-
-                {exchange.answer.citedRowIds.length > 0 ? (
-                  <div className="mt-4 border-t pt-3" style={{ borderColor: 'var(--line)' }}>
-                    <p className="text-xs" style={{ color: 'var(--ink-faint)' }}>
-                      Answered from {exchange.answer.citedRowIds.length}{' '}
-                      {exchange.answer.citedRowIds.length === 1 ? 'row' : 'rows'} — open one to check it
-                    </p>
-                    <div className="mt-2 flex flex-wrap gap-1.5">
-                      {exchange.answer.citedRowIds.map((id) => (
-                        <button
-                          key={id}
-                          type="button"
-                          onClick={() => onOpenRows([id])}
-                          className="ref rounded-md border px-2 py-1 transition-colors"
-                          style={{ borderColor: 'var(--line)', color: 'var(--ink-muted)' }}
-                        >
-                          row {id}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                ) : (
-                  <p className="mt-3 text-xs" style={{ color: 'var(--ink-faint)' }}>
-                    Nothing was cited. Try naming a date, an order id or a UTR.
+      <div ref={bodyRef} className="flex-1 overflow-y-auto p-4">
+        {turns.length === 0 ? (
+          <EmptyState onPick={submit} />
+        ) : (
+          <div className="space-y-5">
+            {turns.map((turn) => (
+              <div key={turn.id} className="space-y-3">
+                <div className="flex justify-end">
+                  <p
+                    className="max-w-[85%] rounded-2xl rounded-br-sm px-3 py-2 text-sm"
+                    style={{ background: 'var(--accent-soft)', color: 'var(--accent)' }}
+                  >
+                    {turn.question}
                   </p>
+                </div>
+
+                {turn.answer === null && turn.error === null && (
+                  <div>
+                    <p className="mb-2 text-xs" style={{ color: 'var(--ink-faint)' }}>
+                      Reading the rows…
+                    </p>
+                    <Skeleton className="h-20 w-full" />
+                  </div>
+                )}
+
+                {turn.answer && (
+                  <Answer
+                    id={turn.id}
+                    answer={turn.answer}
+                    revealed={revealed.current}
+                    onGrow={scrollToBottom}
+                  />
+                )}
+
+                {turn.error != null && (
+                  <div
+                    className="rounded-lg border px-3 py-2"
+                    style={{ borderColor: 'var(--lost)', background: 'var(--lost-soft)' }}
+                  >
+                    <p className="text-sm" style={{ color: 'var(--lost)' }}>
+                      {turn.error instanceof Error ? turn.error.message : 'That question could not be answered.'}
+                    </p>
+                    <p className="mt-1 text-xs" style={{ color: 'var(--ink-muted)' }}>
+                      {turn.error instanceof ApiError ? turn.error.hint : 'Try again in a moment.'}
+                    </p>
+                  </div>
                 )}
               </div>
-            )}
-
-            {exchange.error != null && (
-              <div
-                className="rounded-lg border px-3 py-2"
-                style={{ borderColor: 'var(--lost)', background: 'var(--lost-soft)' }}
-              >
-                <p className="text-sm" style={{ color: 'var(--lost)' }}>
-                  {exchange.error instanceof Error ? exchange.error.message : 'That question could not be answered.'}
-                </p>
-                <p className="mt-1 text-xs" style={{ color: 'var(--ink-muted)' }}>
-                  {exchange.error instanceof ApiError ? exchange.error.hint : 'Try again in a moment.'}
-                </p>
-              </div>
-            )}
+            ))}
           </div>
         )}
       </div>
@@ -218,6 +240,105 @@ export function AskPanel({
         </div>
       </form>
     </motion.section>
+  )
+}
+
+/**
+ * One answer, written out as it is read rather than dropped in whole.
+ *
+ * <p>The text arrived in full — this only paces it — and each answer types once. Scrolling follows
+ * the words down so the end of a long answer is not left below the fold.
+ */
+function Answer({
+  id,
+  answer,
+  revealed,
+  onGrow,
+}: {
+  id: number
+  answer: AskResponse
+  revealed: Set<number>
+  onGrow: () => void
+}) {
+  const [animate] = useState(() => !revealed.has(id))
+  const { shown, done } = useTypewriter(answer.answer, animate)
+
+  useEffect(() => {
+    onGrow()
+    if (done) revealed.add(id)
+  }, [shown, done, id, revealed, onGrow])
+
+  return (
+    <div>
+      <p className="text-sm leading-relaxed">
+        {shown}
+        {!done && <span className="caret" aria-hidden="true" />}
+      </p>
+
+      {/* Held back until the answer has finished: a citation is only checkable against a whole claim. */}
+      {done &&
+        (answer.citations.length > 0 ? (
+          <div className="mt-4 border-t pt-3" style={{ borderColor: 'var(--line)' }}>
+            <p className="text-xs" style={{ color: 'var(--ink-faint)' }}>
+              Answered from {answer.citations.length}{' '}
+              {answer.citations.length === 1 ? 'row' : 'rows'}, shown below
+            </p>
+            <div className="mt-2 space-y-1.5">
+              {answer.citations.map((citation) => (
+                <CitationChip key={citation.id} citation={citation} />
+              ))}
+            </div>
+          </div>
+        ) : (
+          <p className="mt-3 text-xs" style={{ color: 'var(--ink-faint)' }}>
+            Nothing was cited. Try naming a date, an order id or a UTR.
+          </p>
+        ))}
+    </div>
+  )
+}
+
+const CITATION_KINDS: Record<Citation['kind'], string> = {
+  ORDER: 'Order',
+  SETTLEMENT: 'Payout',
+  BANK_CREDIT: 'Bank credit',
+  EXCEPTION: 'Exception',
+}
+
+/**
+ * One cited row, named the way the merchant's own records name it.
+ *
+ * <p>This used to read "row 12542". That number is a database key: it is not on their order export,
+ * not on their bank statement, and not anything they can look up. The order id and the UTR are, so
+ * those lead — and the amount and date beside them are what make a claim checkable at a glance.
+ */
+function CitationChip({ citation }: { citation: Citation }) {
+  const facts = [
+    citation.amount === null ? null : rupees(citation.amount),
+    citation.date === null ? null : shortDate(citation.date),
+  ].filter(Boolean)
+
+  return (
+    <div className="rounded-md border px-2 py-1.5" style={{ borderColor: 'var(--line)' }}>
+      <span className="flex items-baseline gap-1.5">
+        <span className="text-[10px] uppercase tracking-wider" style={{ color: 'var(--ink-faint)' }}>
+          {CITATION_KINDS[citation.kind]}
+        </span>
+        <span className="ref truncate" style={{ color: 'var(--ink)' }}>
+          {citation.ref ?? '—'}
+        </span>
+      </span>
+      {facts.length > 0 && (
+        <span className="mt-0.5 block text-[11px]" style={{ color: 'var(--ink-muted)' }}>
+          {facts.join(' · ')}
+        </span>
+      )}
+      {citation.note && (
+        <span className="mt-0.5 block truncate text-[11px]" style={{ color: 'var(--ink-faint)' }}>
+          {citation.note}
+        </span>
+      )}
+    </button>
   )
 }
 
