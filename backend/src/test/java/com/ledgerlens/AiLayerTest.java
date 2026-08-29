@@ -26,6 +26,7 @@ import org.testcontainers.junit.jupiter.Testcontainers;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.math.BigDecimal;
+import java.time.LocalDate;
 import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.UUID;
@@ -203,6 +204,13 @@ class AiLayerTest {
         assertThat(chatModel.lastPrompt()).contains("ORD-T1").contains("1000.00");
         assertThat(answer.answer()).isEqualTo("Order ORD-T1 was 1000.00 rupees.");
         assertThat(answer.citedRowIds()).hasSize(1);
+        // A row id is a database key. What makes the citation checkable is the order id and amount.
+        assertThat(answer.citations()).singleElement().satisfies(citation -> {
+            assertThat(citation.kind()).isEqualTo("ORDER");
+            assertThat(citation.ref()).isEqualTo("ORD-T1");
+            assertThat(citation.amount()).isEqualByComparingTo("1000.00");
+            assertThat(citation.date()).isEqualTo(LocalDate.of(2026, 7, 27));
+        });
     }
 
     @Test
@@ -216,6 +224,7 @@ class AiLayerTest {
         AskResponse answer = questionAnswerer.ask(batchId, "What was order ORD-T1 worth?");
 
         assertThat(answer.citedRowIds()).isEmpty();
+        assertThat(answer.citations()).isEmpty();
     }
 
     @Test
