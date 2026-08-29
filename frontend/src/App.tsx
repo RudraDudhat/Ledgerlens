@@ -3,6 +3,7 @@ import { useCallback, useState } from 'react'
 import { AskPanel } from './components/AskPanel'
 import type { AlertView } from './api/client'
 import { Drawer, type DrawerSubject } from './components/Drawer'
+import { Logo } from './components/Logo'
 import { Forecast } from './screens/Forecast'
 import { Landing } from './screens/Landing'
 import { Reconciliation, type Row } from './screens/Reconciliation'
@@ -50,8 +51,11 @@ export default function App() {
     <div className="flex h-screen min-w-[1280px]">
       <nav className="flex w-56 shrink-0 flex-col border-r px-3 py-6" style={{ borderColor: 'var(--line)' }}>
         <button type="button" onClick={() => setScreen('landing')} className="px-3 text-left">
-          <p className="text-sm font-semibold">ledgerlens</p>
-          <p className="mt-1 text-xs leading-snug" style={{ color: 'var(--ink-faint)' }}>
+          <span className="flex items-center gap-2">
+            <Logo size={22} />
+            <span className="text-sm font-semibold">ledgerlens</span>
+          </span>
+          <p className="mt-2 text-xs leading-snug" style={{ color: 'var(--ink-faint)' }}>
             Every rupee between what you sold and what hit your bank.
           </p>
         </button>

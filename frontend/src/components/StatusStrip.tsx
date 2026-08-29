@@ -1,4 +1,4 @@
-import { semanticColor } from './StatusBadge'
+import { semanticColor, statusLabel } from './StatusBadge'
 
 /** One slim bar for the whole batch: width is share of records, colour is the shared semantic. */
 export function StatusStrip({ counts }: { counts: Record<string, number> }) {
@@ -13,7 +13,7 @@ export function StatusStrip({ counts }: { counts: Record<string, number> }) {
           <div
             key={status}
             style={{ width: `${(count / total) * 100}%`, background: semanticColor(status) }}
-            title={`${status.replace(/_/g, ' ').toLowerCase()}: ${count}`}
+            title={`${statusLabel(status)}: ${count}`}
           />
         ))}
       </div>
@@ -21,7 +21,7 @@ export function StatusStrip({ counts }: { counts: Record<string, number> }) {
         {entries.map(([status, count]) => (
           <span key={status} className="flex items-center gap-1.5 text-xs" style={{ color: 'var(--ink-muted)' }}>
             <span className="h-2 w-2 rounded-full" style={{ background: semanticColor(status) }} />
-            {status.replace(/_/g, ' ').toLowerCase()} <span className="ref">{count}</span>
+            {statusLabel(status)} <span className="ref">{count}</span>
           </span>
         ))}
       </div>

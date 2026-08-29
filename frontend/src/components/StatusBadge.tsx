@@ -15,6 +15,29 @@ export const STATUS_SEMANTIC: Record<string, 'received' | 'held' | 'lost' | 'fee
   UNKNOWN: 'neutral',
 }
 
+/**
+ * What each status is called on screen.
+ *
+ * <p>The stored values are enum constants, and lower-casing them yields "bank missing" and "refund
+ * prior cycle" — the reconciler's vocabulary, printed at the merchant. These say the same things in
+ * the words the statement already uses, so a chip, a badge and the PDF agree on what to call a
+ * thing. A status with no entry falls back to the old rendering rather than disappearing.
+ */
+export const STATUS_LABEL: Record<string, string> = {
+  MATCHED: 'Matched',
+  HELD_DISPUTE: 'Held for dispute',
+  BANK_MISSING: 'Not credited',
+  PAYMENT_FAILED: 'Payment failed',
+  REFUND_PRIOR_CYCLE: 'Refunded later',
+  BANK_DUPLICATE: 'Duplicate credit',
+  AMOUNT_MISMATCH: 'Amount differs',
+  UNKNOWN: 'Unexplained',
+}
+
+export function statusLabel(status: string): string {
+  return STATUS_LABEL[status] ?? status.replace(/_/g, ' ').toLowerCase()
+}
+
 const TONE: Record<string, { color: string; background: string }> = {
   received: { color: 'var(--received)', background: 'var(--received-soft)' },
   held: { color: 'var(--held)', background: 'var(--held-soft)' },
@@ -34,7 +57,7 @@ export function StatusBadge({ status, children }: { status: string; children?: R
       className="inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-medium tracking-wide"
       style={{ color: tone.color, background: tone.background }}
     >
-      {children ?? status.replace(/_/g, ' ').toLowerCase()}
+      {children ?? statusLabel(status)}
     </span>
   )
 }

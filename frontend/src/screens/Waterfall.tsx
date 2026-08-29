@@ -28,6 +28,24 @@ const SEMANTIC: Record<string, string> = {
   'Unexplained settlement difference': 'var(--lost)',
 }
 
+/**
+ * Short names under the bars. Ten full labels do not fit across a chart, and cutting them mid-word
+ * produced "Settlements n…" and "Unmatched ban…", which name nothing. The legend directly below
+ * carries every label in full, so the axis only has to tell one bar from its neighbour.
+ */
+const AXIS_LABEL: Record<string, string> = {
+  'Gross sales': 'Sales',
+  'Failed payments': 'Failed',
+  'Razorpay fees': 'Fees',
+  'GST on fees': 'GST',
+  'Held for disputes': 'Disputes',
+  Refunds: 'Refunds',
+  'Settlements not credited by bank': 'Not credited',
+  'Unmatched bank credits': 'Unmatched',
+  'Bank amount differences': 'Differences',
+  'Unexplained settlement difference': 'Unexplained',
+}
+
 export function Waterfall({
   batchId,
   onOpenRows,
@@ -118,8 +136,11 @@ export function Waterfall({
         <div className="flex items-start justify-between gap-4">
           <div className="min-w-0">
             <h1 className="text-lg font-semibold">Sales to bank</h1>
+            {/* "Every step is a signed delta" was true and unreadable. The reader is a founder, not
+                the person who wrote the reconciler. */}
             <p className="mt-1 text-sm" style={{ color: 'var(--ink-muted)' }}>
-              Every step is a signed delta, so the bars add up to the bank credits exactly once.
+              Each bar is one thing that happened to your money on the way to the bank. Together they
+              account for the whole difference, once each.
             </p>
           </div>
           <StatementButton batchId={batchId} ready={narrative !== null} />
@@ -131,7 +152,7 @@ export function Waterfall({
               <XAxis
                 dataKey="label"
                 tick={{ fontSize: 10, fill: 'var(--ink-faint)' }}
-                tickFormatter={(label: string) => (label.length > 14 ? `${label.slice(0, 13)}…` : label)}
+                tickFormatter={(label: string) => AXIS_LABEL[label] ?? label}
                 axisLine={{ stroke: 'var(--line)' }}
                 tickLine={false}
                 interval={0}
@@ -147,8 +168,11 @@ export function Waterfall({
                       <p className="amount mt-1" style={{ textAlign: 'left', color: step.color }}>
                         {signedRupees(step.amount)}
                       </p>
+                      {/* "running" alone left the reader to work out running what. This is the
+                          number they care about: where the money stands after this bar. */}
                       <p className="mt-1" style={{ color: 'var(--ink-muted)' }}>
-                        {step.sourceRowIds.length} source rows · running {rupees(step.running)}
+                        {step.sourceRowIds.length} {step.sourceRowIds.length === 1 ? 'row' : 'rows'} ·
+                        leaves {rupees(step.running)}
                       </p>
                     </div>
                   )
@@ -185,7 +209,7 @@ export function Waterfall({
               <li key={step.label} className="flex items-center justify-between gap-2">
                 <span className="flex min-w-0 items-center gap-1.5" style={{ color: 'var(--ink-muted)' }}>
                   <span className="h-1.5 w-1.5 shrink-0 rounded-full" style={{ background: step.color }} />
-                  <span className="truncate">{step.label}</span>
+                  <span className="truncate" title={step.label}>{step.label}</span>
                 </span>
                 <span className="amount shrink-0" style={{ color: step.color }}>
                   {signedRupees(step.amount)}

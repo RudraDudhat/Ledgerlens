@@ -4,7 +4,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { api, type AlertView, type ExceptionView, type MatchView, type ReconcileSummary } from '../api/client'
 import { HealthStrip } from '../components/HealthStrip'
 import { StatCard } from '../components/StatCard'
-import { StatusBadge, semanticColor } from '../components/StatusBadge'
+import { StatusBadge, semanticColor, statusLabel } from '../components/StatusBadge'
 import { StatusStrip } from '../components/StatusStrip'
 import { SkeletonCards, SkeletonRows } from '../components/Skeleton'
 import { ErrorState } from '../components/States'
@@ -178,13 +178,13 @@ export function Reconciliation({
 
       <div className="mt-4 flex items-center gap-2">
         <div className="flex flex-wrap gap-1.5">
-          <FilterChip label="all" count={rows.length} active={statusFilter === null} onClick={() => setStatusFilter(null)} />
+          <FilterChip label="All" count={rows.length} active={statusFilter === null} onClick={() => setStatusFilter(null)} />
           {Object.entries(summary.countsByStatus)
             .filter(([, count]) => count > 0)
             .map(([status, count]) => (
               <FilterChip
                 key={status}
-                label={status.replace(/_/g, ' ').toLowerCase()}
+                label={statusLabel(status)}
                 count={count}
                 color={semanticColor(status)}
                 active={statusFilter === status}

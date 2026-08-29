@@ -1,4 +1,5 @@
 import { motion } from 'framer-motion'
+import { Logo } from '../components/Logo'
 import { rupees } from '../lib/format'
 import { usePrefersReducedMotion } from '../lib/motion'
 
@@ -22,6 +23,37 @@ const WATERFALL: { label: string; amount: number; tone: string }[] = [
   { label: 'Not credited by bank', amount: -108557.71, tone: 'var(--held)' },
   { label: 'Unmatched bank credits', amount: 226173.9, tone: 'var(--received)' },
   { label: 'Bank amount differences', amount: 33, tone: 'var(--fees)' },
+]
+
+/** The three files, in the order a merchant would think of them: sold, paid out, arrived. */
+const INPUTS = [
+  { file: 'orders.csv', from: 'your store', carries: 'what you sold' },
+  { file: 'razorpay_settlement.csv', from: 'Razorpay', carries: 'what it says it paid out' },
+  { file: 'bank_statement.csv', from: 'your bank', carries: 'what actually arrived' },
+]
+
+/** What the three files turn into. The numbers match the steps in the sidebar once you are inside. */
+const OUTPUTS = [
+  {
+    step: '2',
+    title: 'Reconciliation',
+    body: 'Every order matched to a payout and a bank credit — or flagged, with the reason it could not be.',
+  },
+  {
+    step: '3',
+    title: 'Waterfall',
+    body: 'Each rupee between sales and bank, named and counted exactly once.',
+  },
+  {
+    step: '4',
+    title: 'Forecast',
+    body: 'What is still due to land, and which day it should arrive.',
+  },
+  {
+    step: '/',
+    title: 'Ask',
+    body: 'Plain questions answered from the rows themselves, citing the ones it used.',
+  },
 ]
 
 const CAPABILITIES = [
@@ -51,6 +83,7 @@ export function Landing({ onStart }: { onStart: () => void }) {
   const reduced = usePrefersReducedMotion()
   const widest = Math.max(...WATERFALL.map((step) => Math.abs(step.amount)))
 
+  /** The hero is on screen at load, so it animates on mount rather than on scroll. */
   const rise = (delay: number) =>
     reduced
       ? {}
@@ -60,13 +93,57 @@ export function Landing({ onStart }: { onStart: () => void }) {
           transition: { duration: 0.35, delay, ease: 'easeOut' as const },
         }
 
+  /**
+   * Everything below the fold animates when it is reached, not at load. Animating a section the
+   * reader cannot see spends the motion on nobody and leaves them scrolling into a static page.
+   */
+  const reveal = (delay = 0) =>
+    reduced
+      ? {}
+      : {
+          initial: { opacity: 0, y: 12 },
+          whileInView: { opacity: 1, y: 0 },
+          viewport: { once: true, amount: 0.2 },
+          transition: { duration: 0.4, delay, ease: 'easeOut' as const },
+        }
+
+  /**
+   * A row that staggers its own children.
+   *
+   * <p>The observer goes on the row, never on the cards. The page has a 1280px floor, so in a
+   * narrower window the last column of a four-column grid sits off the right edge — and a card
+   * watching for its own visibility there is never seen, so it never animates and stays at zero
+   * opacity for good. A full-width row always intersects; its children follow it in.
+   */
+  const stagger = (gap = 0.08) =>
+    reduced
+      ? {}
+      : {
+          initial: 'hidden' as const,
+          whileInView: 'shown' as const,
+          viewport: { once: true, amount: 0.2 },
+          variants: { shown: { transition: { staggerChildren: gap } } },
+        }
+
+  const item = reduced
+    ? {}
+    : {
+        variants: {
+          hidden: { opacity: 0, y: 12 },
+          shown: { opacity: 1, y: 0, transition: { duration: 0.4, ease: 'easeOut' as const } },
+        },
+      }
+
   return (
     <div className="h-screen min-w-[1280px] overflow-y-auto">
       <div className="mx-auto max-w-6xl px-10 py-20">
         <motion.header {...rise(0)}>
-          <p className="ref text-xs uppercase tracking-[0.2em]" style={{ color: 'var(--ink-faint)' }}>
-            ledgerlens
-          </p>
+          <div className="flex items-center gap-3">
+            <Logo size={40} title="ledgerlens" />
+            <p className="ref text-xs uppercase tracking-[0.2em]" style={{ color: 'var(--ink-faint)' }}>
+              ledgerlens
+            </p>
+          </div>
           <h1 className="mt-5 max-w-3xl text-5xl font-semibold leading-[1.1]">
             Every rupee between what you sold and what hit your bank.
           </h1>
@@ -91,13 +168,90 @@ export function Landing({ onStart }: { onStart: () => void }) {
           </div>
         </motion.header>
 
-        <motion.section {...rise(0.08)} className="card mt-16 p-8">
+        {/*
+          Three files in, one pass, four ways to read the result. Placed before any of the detail
+          below, because someone who does not yet know what the tool consumes cannot make sense of a
+          waterfall of its output.
+        */}
+        <section className="mt-20">
+          <motion.div {...reveal()}>
+            <h2 className="text-lg font-semibold">How it works</h2>
+            <p className="mt-1 text-sm" style={{ color: 'var(--ink-muted)' }}>
+              Three files go in. Everything else is read back out of what they agree and disagree on.
+            </p>
+          </motion.div>
+
+          <motion.div {...stagger()} className="mt-8 grid grid-cols-3 gap-4">
+            {INPUTS.map((input) => (
+              <motion.div key={input.file} {...item} className="card p-5">
+                <p className="ref text-xs" style={{ color: 'var(--accent)' }}>
+                  {input.file}
+                </p>
+                <p className="mt-2 text-sm">{input.carries}</p>
+                <p className="mt-1 text-xs" style={{ color: 'var(--ink-faint)' }}>
+                  from {input.from}
+                </p>
+              </motion.div>
+            ))}
+          </motion.div>
+
+          <Flow reduced={reduced} />
+
+          <motion.div {...reveal()} className="card p-6" style={{ borderColor: 'var(--accent)' }}>
+            <div className="flex items-baseline justify-between">
+              <p className="text-sm font-semibold">One reconciliation pass</p>
+              <span className="ref text-xs" style={{ color: 'var(--ink-faint)' }}>
+                rules first, model only where rules ran out
+              </span>
+            </div>
+            <div className="mt-4 grid grid-cols-3 gap-4">
+              {[
+                { n: '1', text: 'Match every order to a payout and a bank credit, one to one.' },
+                { n: '2', text: 'Explain each record that would not match, and say how sure it is.' },
+                { n: '3', text: 'Account for the whole gap, to the rupee, with nothing absorbed.' },
+              ].map((phase) => (
+                <div key={phase.n} className="flex gap-2.5">
+                  <span
+                    className="ref flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-[10px]"
+                    style={{ background: 'var(--accent-soft)', color: 'var(--accent)' }}
+                  >
+                    {phase.n}
+                  </span>
+                  <p className="text-sm leading-relaxed" style={{ color: 'var(--ink-muted)' }}>
+                    {phase.text}
+                  </p>
+                </div>
+              ))}
+            </div>
+          </motion.div>
+
+          <Flow reduced={reduced} />
+
+          <motion.div {...stagger()} className="grid grid-cols-4 gap-4">
+            {OUTPUTS.map((output) => (
+              <motion.div key={output.title} {...item} className="card p-5">
+                <span
+                  className="ref inline-flex h-5 w-5 items-center justify-center rounded text-[10px]"
+                  style={{ background: 'var(--line)', color: 'var(--ink-muted)' }}
+                >
+                  {output.step}
+                </span>
+                <p className="mt-2.5 text-sm font-medium">{output.title}</p>
+                <p className="mt-1.5 text-xs leading-relaxed" style={{ color: 'var(--ink-muted)' }}>
+                  {output.body}
+                </p>
+              </motion.div>
+            ))}
+          </motion.div>
+        </section>
+
+        <motion.section {...reveal()} className="card mt-20 p-8">
           <div className="flex items-baseline justify-between">
             <div>
               <h2 className="text-lg font-semibold">The gap, accounted for</h2>
               <p className="mt-1 text-sm" style={{ color: 'var(--ink-muted)' }}>
-                Every step is a signed delta summed from stored rows. Nothing is estimated, and
-                nothing is rounded for display.
+                Every bar is summed from stored rows. Nothing is estimated, and nothing is rounded
+                for display.
               </p>
             </div>
             <span className="ref text-xs" style={{ color: 'var(--ink-faint)' }}>
@@ -105,17 +259,14 @@ export function Landing({ onStart }: { onStart: () => void }) {
             </span>
           </div>
 
-          <ul className="mt-8 space-y-2.5">
-            {WATERFALL.map((step, index) => (
+          {/* One observer on the list; every bar grows off the same trigger, in order. */}
+          <motion.ul {...stagger(0.05)} className="mt-8 space-y-2.5">
+            {WATERFALL.map((step) => (
               <motion.li
                 key={step.label}
                 {...(reduced
                   ? {}
-                  : {
-                      initial: { opacity: 0 },
-                      animate: { opacity: 1 },
-                      transition: { duration: 0.25, delay: 0.2 + index * 0.05 },
-                    })}
+                  : { variants: { hidden: { opacity: 0 }, shown: { opacity: 1 } } })}
                 className="grid items-center gap-4"
                 style={{ gridTemplateColumns: '220px 1fr 160px' }}
               >
@@ -132,9 +283,13 @@ export function Landing({ onStart }: { onStart: () => void }) {
                     {...(reduced
                       ? {}
                       : {
-                          initial: { width: 0 },
-                          animate: { width: `${(Math.abs(step.amount) / widest) * 100}%` },
-                          transition: { duration: 0.5, delay: 0.25 + index * 0.05, ease: 'easeOut' as const },
+                          variants: {
+                            hidden: { width: 0 },
+                            shown: {
+                              width: `${(Math.abs(step.amount) / widest) * 100}%`,
+                              transition: { duration: 0.5, ease: 'easeOut' as const },
+                            },
+                          },
                         })}
                   />
                 </span>
@@ -144,7 +299,7 @@ export function Landing({ onStart }: { onStart: () => void }) {
                 </span>
               </motion.li>
             ))}
-          </ul>
+          </motion.ul>
 
           <div
             className="mt-8 flex items-baseline justify-between border-t pt-5"
@@ -160,7 +315,7 @@ export function Landing({ onStart }: { onStart: () => void }) {
           </div>
         </motion.section>
 
-        <motion.section {...rise(0.12)} className="mt-16">
+        <motion.section {...reveal()} className="mt-20">
           <h2 className="text-lg font-semibold">What it does</h2>
           <div className="mt-6 grid grid-cols-2 gap-4">
             {CAPABILITIES.map((capability) => (
@@ -177,7 +332,7 @@ export function Landing({ onStart }: { onStart: () => void }) {
           </div>
         </motion.section>
 
-        <motion.section {...rise(0.16)} className="card mt-16 p-8">
+        <motion.section {...reveal()} className="card mt-20 p-8">
           <h2 className="text-lg font-semibold">Measured, not claimed</h2>
           <p className="mt-1 max-w-3xl text-sm" style={{ color: 'var(--ink-muted)' }}>
             These come from the test suite on the committed batch, where every injected anomaly is
@@ -215,7 +370,7 @@ export function Landing({ onStart }: { onStart: () => void }) {
           </p>
         </motion.section>
 
-        <motion.section {...rise(0.2)} className="mt-16">
+        <motion.section {...reveal()} className="mt-20">
           <h2 className="text-lg font-semibold">Where the model is, and is not</h2>
           <div className="mt-6 grid grid-cols-3 gap-4">
             <div className="card p-6">
@@ -252,8 +407,8 @@ export function Landing({ onStart }: { onStart: () => void }) {
         </motion.section>
 
         <motion.footer
-          {...rise(0.24)}
-          className="mt-16 flex items-center justify-between border-t pt-8"
+          {...reveal()}
+          className="mt-20 flex items-center justify-between border-t pt-8"
           style={{ borderColor: 'var(--line)' }}
         >
           <p className="text-sm" style={{ color: 'var(--ink-muted)' }}>
@@ -269,6 +424,43 @@ export function Landing({ onStart }: { onStart: () => void }) {
           </button>
         </motion.footer>
       </div>
+    </div>
+  )
+}
+
+/**
+ * The line between one stage of the flow and the next, drawn downward as it is scrolled to.
+ *
+ * <p>Decoration, and marked as such: it carries no information the cards either side do not already
+ * state, so a screen reader is better off skipping it entirely.
+ */
+function Flow({ reduced }: { reduced: boolean }) {
+  return (
+    <div className="flex flex-col items-center py-5" aria-hidden="true">
+      <motion.span
+        className="block w-px"
+        style={{ height: 26, background: 'var(--line)', transformOrigin: 'top' }}
+        {...(reduced
+          ? {}
+          : {
+              initial: { scaleY: 0 },
+              whileInView: { scaleY: 1 },
+              viewport: { once: true },
+              transition: { duration: 0.35, ease: 'easeOut' as const },
+            })}
+      />
+      <motion.span
+        className="mt-1 block h-1.5 w-1.5 rounded-full"
+        style={{ background: 'var(--accent)' }}
+        {...(reduced
+          ? {}
+          : {
+              initial: { opacity: 0, scale: 0 },
+              whileInView: { opacity: 1, scale: 1 },
+              viewport: { once: true },
+              transition: { duration: 0.25, delay: 0.3, ease: 'easeOut' as const },
+            })}
+      />
     </div>
   )
 }
