@@ -159,3 +159,21 @@ LANGUAGE plpgsql;
 CREATE OR REPLACE TRIGGER trg_audit_log_append_only
     BEFORE UPDATE OR DELETE ON audit_log
     FOR EACH ROW EXECUTE FUNCTION audit_log_block_mutation();
+
+-- Hybrid Ask retrieval. Kept out of the reconciliation path entirely: nothing above reads this
+-- table, and a batch reconciles identically whether or not it was ever indexed.
+CREATE EXTENSION IF NOT EXISTS vector;
+
+CREATE TABLE IF NOT EXISTS rag_documents (
+    id          UUID PRIMARY KEY,
+    batch_id    UUID NOT NULL REFERENCES ingest_batches (id) ON DELETE CASCADE,
+    record_id   VARCHAR(120) NOT NULL,
+    record_type VARCHAR(40) NOT NULL,
+    content     TEXT NOT NULL,
+    embedding   vector,
+    metadata    JSONB NOT NULL DEFAULT '{}'::jsonb,
+    created_at  TIMESTAMP NOT NULL DEFAULT now()
+);
+
+-- Every search is filtered by batch, so that is the index that matters.
+CREATE INDEX IF NOT EXISTS idx_rag_documents_batch ON rag_documents (batch_id);
