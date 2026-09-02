@@ -11,6 +11,7 @@ import com.ledgerlens.repository.AuditLogRepository;
 import com.ledgerlens.repository.IngestBatchRepository;
 import com.ledgerlens.repository.MatchRecordRepository;
 import com.ledgerlens.repository.MerchantOrderRepository;
+import com.ledgerlens.rules.StatusGlossary;
 import com.openhtmltopdf.extend.FSSupplier;
 import com.openhtmltopdf.pdfboxout.PdfRendererBuilder;
 import com.openhtmltopdf.util.XRLog;
@@ -80,29 +81,6 @@ public class StatementPdfService {
     private static final DateTimeFormatter STAMP = DateTimeFormatter.ofPattern("dd MMM uuuu, HH:mm", Locale.ENGLISH);
     private static final DateTimeFormatter FILE_DAY = DateTimeFormatter.ofPattern("uuuu-MM-dd", Locale.ENGLISH);
 
-    /**
-     * What each status means for someone who does not work in payments. Written once, here, so the
-     * statement explains itself instead of repeating the reconciler's internal vocabulary.
-     */
-    private static final Map<String, String> STATUS_MEANING = Map.of(
-            "PAYMENT_FAILED",
-            "The payment never went through, so no money was collected and none is owed to you.",
-            "HELD_DISPUTE",
-            "Customers disputed these payments, so Razorpay is holding the money until each one resolves.",
-            "REFUND_PRIOR_CYCLE",
-            "You refunded these after the original payment had already been paid out, so the money came back "
-                    + "out of a later payout.",
-            "BANK_DUPLICATE",
-            "The same credit appears twice in your bank statement. Only one of them is a real payout, so this "
-                    + "is worth raising with your bank.",
-            "BANK_MISSING",
-            "Razorpay says it paid out, but no matching credit has reached your bank yet.",
-            "AMOUNT_MISMATCH",
-            "The amount Razorpay settled and the amount your bank credited do not agree.",
-            "UNKNOWN",
-            "These could not be explained by any rule and need a human eye.",
-            "MATCHED",
-            "These lined up cleanly and need nothing from you.");
 
     /**
      * Statuses stated as one total rather than listed, mapped to the waterfall step that carries the
@@ -373,7 +351,7 @@ public class StatementPdfService {
             out.append("<div class=\"group\"><div class=\"group-head\">")
                     .append(escape(headingFor(group.getKey(), rows.size())))
                     .append("</div><p class=\"group-why\">")
-                    .append(escape(STATUS_MEANING.getOrDefault(group.getKey(), "These need a human eye.")))
+                    .append(escape(StatusGlossary.meaningOf(group.getKey())))
                     .append("</p><table class=\"rows\">");
             for (ExceptionView view : rows) {
                 if (shown >= EXCEPTION_ROW_CAP) {
@@ -443,7 +421,7 @@ public class StatementPdfService {
         return "<div class=\"group\"><div class=\"group-head\">"
                 + escape(heading)
                 + "</div><p class=\"group-why\">"
-                + escape(STATUS_MEANING.getOrDefault(status, "These need a human eye.")
+                + escape(StatusGlossary.meaningOf(status)
                         + " Each one is listed in the dashboard.")
                 + "</p></div>";
     }
