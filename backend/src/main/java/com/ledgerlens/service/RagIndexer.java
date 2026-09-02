@@ -9,6 +9,7 @@ import org.springframework.ai.document.Document;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.domain.PageRequest;
+import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 
 import java.util.ArrayList;
@@ -25,9 +26,14 @@ import java.util.UUID;
  * could match, and indexing them would bury the findings that matter under thousands of near
  * identical rows.
  *
- * <p>Indexing runs at the end of reconcile and is not allowed to break it. A batch that failed to
- * index reconciles exactly as it would have; the only thing lost is fuzzy search over it, and the
- * exact-lookup path never touched this table.
+ * <p>Indexing runs on its own thread once reconcile has committed, and is not allowed to break it.
+ * Embedding several hundred documents takes far longer than the reconciliation itself, and a
+ * merchant waiting on a POST should not be paying for search they have not asked for yet. A batch
+ * that failed to index reconciles exactly as it would have; the only thing lost is fuzzy search over
+ * it, and the exact-lookup path never touched this table.
+ *
+ * <p>The consequence to know about: for a few seconds after a large reconcile, a question with no
+ * exact anchor finds nothing. It refuses rather than answering from a half-built index.
  */
 @Service
 public class RagIndexer {
@@ -60,6 +66,7 @@ public class RagIndexer {
      * <p>Never throws. A reconciliation that succeeded must not be reported as failed because an
      * embedding call timed out.
      */
+    @Async
     public void index(UUID batchId) {
         RagStore store = enabled ? stores.getIfAvailable() : null;
         if (store == null) {

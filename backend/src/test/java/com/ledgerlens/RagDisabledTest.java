@@ -15,6 +15,8 @@ import org.springframework.boot.testcontainers.service.connection.ServiceConnect
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Import;
 import org.springframework.context.annotation.Primary;
+import org.springframework.core.task.SyncTaskExecutor;
+import org.springframework.core.task.TaskExecutor;
 import org.testcontainers.containers.PostgreSQLContainer;
 import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
@@ -59,6 +61,16 @@ class RagDisabledTest {
         @Primary
         FakeRagStore fakeRagStore() {
             return new FakeRagStore();
+        }
+
+        /**
+         * Indexing is @Async in production so reconcile does not wait on the embedding provider.
+         * Here it runs on the calling thread, so a test can assert what was indexed straight after
+         * reconcile instead of racing a background thread.
+         */
+        @Bean
+        TaskExecutor taskExecutor() {
+            return new SyncTaskExecutor();
         }
     }
 

@@ -25,6 +25,8 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.math.BigDecimal;
@@ -110,10 +112,28 @@ public class ReconciliationService {
 
         ReconcileSummary summary = buildSummary(batchId, orders, settlements, bankEntries, matches);
         auditLogRepository.save(auditEntry(batchId, summary));
-        // Last, and unable to fail the run: search is a convenience over a reconciliation that is
-        // already complete and already persisted by this point.
-        ragIndexer.index(batchId);
+        indexAfterCommit(batchId);
         return summary;
+    }
+
+    /**
+     * Hands the batch to the indexer once this transaction has actually committed.
+     *
+     * <p>Indexing reads the exceptions and matches back through their own transaction, on another
+     * thread. Started any earlier it would race the commit and find a batch that is not there yet,
+     * so it is registered as an after-commit callback rather than called inline.
+     */
+    private void indexAfterCommit(UUID batchId) {
+        if (!TransactionSynchronizationManager.isSynchronizationActive()) {
+            ragIndexer.index(batchId);
+            return;
+        }
+        TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+            @Override
+            public void afterCommit() {
+                ragIndexer.index(batchId);
+            }
+        });
     }
 
     @Transactional(readOnly = true)
