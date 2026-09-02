@@ -34,7 +34,6 @@ async function inspect(file: File, expected: string[]): Promise<Parsed> {
 
 export function Upload({ onReconciled }: { onReconciled: (batchId: string) => void }) {
   const [files, setFiles] = useState<Partial<Record<ZoneKey, Parsed>>>({})
-  const [answerKey, setAnswerKey] = useState<File | null>(null)
   const [steps, setSteps] = useState<{ label: string; state: StepState }[] | null>(null)
   const [error, setError] = useState<unknown>(null)
 
@@ -114,24 +113,6 @@ export function Upload({ onReconciled }: { onReconciled: (batchId: string) => vo
         {(Object.keys(EXPECTED) as ZoneKey[]).map((key) => (
           <DropZone key={key} zone={key} parsed={files[key]} onFile={(file) => void accept(key, file)} />
         ))}
-      </div>
-
-      <div className="mt-4">
-        <label
-          className="card flex cursor-pointer items-center justify-between px-4 py-3 text-xs"
-          style={{ color: 'var(--ink-muted)' }}
-        >
-          <span>
-            {answerKey ? `${answerKey.name} loaded` : 'answer_key.json (optional)'} — for measuring accuracy on synthetic data
-          </span>
-          <input
-            type="file"
-            accept="application/json"
-            className="hidden"
-            onChange={(event) => setAnswerKey(event.target.files?.[0] ?? null)}
-          />
-          <span style={{ color: 'var(--accent)' }}>choose</span>
-        </label>
       </div>
 
       {error != null && (
