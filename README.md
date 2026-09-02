@@ -90,7 +90,7 @@ WALLET, 2026-09-03 ₹4,104.75 UPI, 2026-09-04 ₹5,816.99 UPI — including the
 
 ### Suite
 
-141 backend tests, 0 failures. Testcontainers starts a real PostgreSQL 16, so Docker must be running.
+151 backend tests, 0 failures. Testcontainers starts a real PostgreSQL 16, so Docker must be running.
 
 ---
 
@@ -145,6 +145,37 @@ already computed, and answers from rows already retrieved.
 **Package layout** is layered Spring: `entity`, `repository`, `service`, `controller`, `dto`, plus
 `rules` for the domain arithmetic and `runner` for the generator CLI. Dependencies point inward —
 nothing in `entity` or `repository` imports from `dto` or `controller`.
+
+---
+
+## Hybrid Q&A retrieval
+
+The Ask panel routes each question before answering it. A plain heuristic, no model call:
+
+| the question | path | why |
+| --- | --- | --- |
+| names an order id, UTR, amount or date | SQL only | there is something exact to look up; similarity would add noise |
+| asks what a term means | glossary | "what is a chargeback" has no answer in anyone's rows |
+| anything else | SQL, then vectors | "why did we receive less money" has no anchor to look up |
+
+Reconcile indexes two kinds of document into `rag_documents`: one per exception, one per matched
+order. No raw bank rows and no settlement lines — they carry no sentence a question could match.
+
+**Batch isolation is the invariant.** Every search takes the batch as a required argument, filters on
+the `batch_id` column in SQL, and then re-checks each hit's batch against its metadata before it is
+used. One merchant's rows reaching another's answer is the failure this feature must not have, so it
+is guarded twice. `RagTest.aQuestionAboutOneBatchNeverReachesAnother` seeds a document that would
+match perfectly into batch A and asserts that asking batch B returns nothing belonging to A;
+`aHitClaimingAnotherBatchIsDiscarded` proves the second guard catches what a filtering bug would
+produce.
+
+Indexing runs at the end of reconcile and cannot fail it — errors are logged and swallowed, and
+`RagTest$Indexer.indexingFailureDoesNotFailReconcile` holds that line.
+
+**To disable:** `ledgerlens.rag.enabled=false` (or `LEDGERLENS_RAG_ENABLED=false`). Nothing is
+indexed, no search happens, and Ask behaves exactly as it did before vectors existed —
+`RagDisabledTest` asserts all three. Requires the `pgvector/pgvector:pg16` image, which
+`docker-compose.yml` and the Testcontainers tests both use.
 
 ---
 
