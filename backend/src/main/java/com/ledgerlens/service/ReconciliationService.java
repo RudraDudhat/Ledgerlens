@@ -57,6 +57,7 @@ public class ReconciliationService {
     private final ExceptionClassifier exceptionClassifier;
     private final HealthService healthService;
     private final DeterministicMatcher matcher;
+    private final RagIndexer ragIndexer;
 
     public ReconciliationService(IngestBatchRepository ingestBatchRepository,
                                  MerchantOrderRepository orderRepository,
@@ -70,7 +71,8 @@ public class ReconciliationService {
                                  ExceptionDetectionService exceptionDetectionService,
                                  ExceptionClassifier exceptionClassifier,
                                  HealthService healthService,
-                                 DeterministicMatcher matcher) {
+                                 DeterministicMatcher matcher,
+                                 RagIndexer ragIndexer) {
         this.ingestBatchRepository = ingestBatchRepository;
         this.orderRepository = orderRepository;
         this.paymentRepository = paymentRepository;
@@ -84,6 +86,7 @@ public class ReconciliationService {
         this.exceptionClassifier = exceptionClassifier;
         this.healthService = healthService;
         this.matcher = matcher;
+        this.ragIndexer = ragIndexer;
     }
 
     /** Re-runnable: an earlier run's matches are cleared first, so the result never accumulates. */
@@ -107,6 +110,9 @@ public class ReconciliationService {
 
         ReconcileSummary summary = buildSummary(batchId, orders, settlements, bankEntries, matches);
         auditLogRepository.save(auditEntry(batchId, summary));
+        // Last, and unable to fail the run: search is a convenience over a reconciliation that is
+        // already complete and already persisted by this point.
+        ragIndexer.index(batchId);
         return summary;
     }
 
