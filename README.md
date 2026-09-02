@@ -2,10 +2,13 @@
 
 Explains every rupee between what you sold and what hit your bank.
 
-An AI Finance Controller for Indian merchants on Razorpay. It reconciles three files — the order
-export, the Razorpay settlement report, the bank statement — then explains the gap between sales and
-money received as a waterfall, lists what it could not match as typed exceptions with reasons and
-confidence, forecasts what is still coming, and answers questions grounded in the rows themselves.
+An AI Finance Controller for Indian merchants on Razorpay. Give it three files — the order export,
+the Razorpay settlement report, the bank statement — and it:
+
+- explains the gap between sales and money received, as a waterfall that closes to the rupee
+- lists what it could not match as typed exceptions, each with a reason and a confidence
+- forecasts what is still due to land, and on which day
+- answers plain questions from the rows themselves, citing the ones it used
 
 ---
 
@@ -87,7 +90,7 @@ WALLET, 2026-09-03 ₹4,104.75 UPI, 2026-09-04 ₹5,816.99 UPI — including the
 
 ### Suite
 
-93 backend tests, 0 failures. Generating the 300-order batch takes 172 ms.
+141 backend tests, 0 failures. Testcontainers starts a real PostgreSQL 16, so Docker must be running.
 
 ---
 
@@ -133,15 +136,24 @@ flowchart LR
   EXC --> UI
 ```
 
-Deterministic rules run first and settle everything they can. The model is called only for what is
-left, and never computes a number: it classifies leftovers, narrates a finished waterfall, and
-answers from rows already retrieved by query. Every model call is written to `audit_log` with the
-prompt hash, model, latency and output.
+**Rules first, model second.** Deterministic rules settle everything they can. The model never
+computes a number — it classifies only what the rules could not, narrates a waterfall that was
+already computed, and answers from rows already retrieved.
 
-**Backend package layout** is conventional layered Spring: `entity`, `repository`, `service`,
-`controller`, `dto`, plus `rules` for the domain arithmetic and `runner` for the generator's CLI
-entry point. Dependencies point inward; nothing in `entity` or `repository` imports from `dto` or
-`controller`.
+**Every model call is logged** to `audit_log` with the prompt hash, model, latency and output.
+
+**Package layout** is layered Spring: `entity`, `repository`, `service`, `controller`, `dto`, plus
+`rules` for the domain arithmetic and `runner` for the generator CLI. Dependencies point inward —
+nothing in `entity` or `repository` imports from `dto` or `controller`.
+
+---
+
+## Designed, not shipped
+
+**[Razorpay OAuth connect](OAUTH-DESIGN.md)** — today Ledgerlens reads one Razorpay account, because
+credentials come from env vars. Merchants cannot just hand over their API key instead: a Razorpay key
+secret is account-wide, not read-only. The design covers the OAuth flow that fixes this, and why it
+is not built here — it needs partner credentials from Razorpay and a public HTTPS callback URL.
 
 ---
 
@@ -207,6 +219,7 @@ Every value the app reads comes from the environment; nothing is hardcoded. Copy
 | `GEMINI_API_KEY` | no | classifier, narrator, Ask | those three endpoints return 503; everything else works |
 | `GEMINI_MODEL` | no | choosing a different model | defaults to `gemini-3.6-flash` |
 | `RAZORPAY_KEY_ID` / `RAZORPAY_KEY_SECRET` | no | `POST /api/ingest/razorpay` | that endpoint returns 503 naming the missing variables; CSV ingest is unaffected |
+| `LEDGERLENS_MERCHANT_NAME` | no | the name at the head of the PDF statement | defaults to `Your business`; there is no merchant record in the schema |
 | `LEDGERLENS_ANSWER_KEY_PATH` | no | scoring `/api/metrics` against ground truth | defaults to `data/answer_key.json`; compose mounts `./data` read-only at `/app/data` |
 | `BACKEND_PORT` / `FRONTEND_PORT` | no | avoiding a port clash | default to `8080` and `5173` |
 
@@ -230,7 +243,10 @@ the exception list, the metrics and the forecast are all deterministic and need 
 | GET | `/api/reconcile/{batchId}/exceptions` | status, reason, confidence, source row ids |
 | GET | `/api/reconcile/{batchId}/matches` | paginated matched rows |
 | GET | `/api/forecast/{batchId}` | forward settlement calendar |
-| POST | `/api/ask/{batchId}` | `{answer, citedRowIds[]}` |
+| GET | `/api/reconcile/{batchId}/statement.pdf` | two-page settlement statement as a PDF |
+| POST | `/api/ask/{batchId}` | `{answer, citedRowIds[], citations[]}` — citations name the row, not its id |
+| GET | `/api/health/{batchId}` | batch metrics, baseline and anomaly alerts |
+| GET | `/api/health/{batchId}/history` | the trailing batches the baseline is drawn from |
 | GET | `/api/metrics/{batchId}` | precision/recall per status plus calibration buckets |
 
 ---
