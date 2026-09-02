@@ -169,7 +169,10 @@ match perfectly into batch A and asserts that asking batch B returns nothing bel
 `aHitClaimingAnotherBatchIsDiscarded` proves the second guard catches what a filtering bug would
 produce.
 
-Indexing runs at the end of reconcile and cannot fail it — errors are logged and swallowed, and
+Indexing runs on a background thread once reconcile has committed, so a merchant waiting on a POST
+never waits on the embedding provider. The cost is that for a few seconds after a large batch, a
+question with no exact anchor finds nothing and refuses rather than answering from a half-built
+index; exact lookups are unaffected. Indexing cannot fail reconcile — errors are logged and swallowed, and
 `RagTest$Indexer.indexingFailureDoesNotFailReconcile` holds that line.
 
 **To disable:** `ledgerlens.rag.enabled=false` (or `LEDGERLENS_RAG_ENABLED=false`). Nothing is
