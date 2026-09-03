@@ -12,6 +12,8 @@ import com.ledgerlens.repository.ExceptionRecordRepository;
 import com.ledgerlens.repository.IngestBatchRepository;
 import com.ledgerlens.repository.MerchantOrderRepository;
 import com.ledgerlens.repository.SettlementBatchRepository;
+import com.ledgerlens.rules.StatusGlossary;
+import org.springframework.ai.document.Document;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -47,27 +49,51 @@ public class QuestionAnswerer {
     private static final Pattern DATE = Pattern.compile("\\b\\d{4}-\\d{2}-\\d{2}\\b");
     private static final Pattern AMOUNT = Pattern.compile("(?<![\\d-])\\d+(?:\\.\\d{1,2})?(?![\\d-])");
 
+    private static final Pattern DEFINITIONAL = Pattern.compile(
+            "\\b(what is|what are|what does|what do|explain|define|definition of|difference between|meaning of)\\b");
+
+    /**
+     * Words that make a question about <em>their</em> data, however definitional its opening sounds.
+     *
+     * <p>Matching whole phrases was too brittle. "Explain the reconciliation for the current batch"
+     * slipped past a "the batch" pattern because of the word sitting between them, and was answered
+     * out of a glossary when it was a question about their rows. Single words are the safer failure:
+     * sending a definition down the hybrid path costs one lookup, while sending a question about
+     * their data to the glossary costs the answer.
+     */
+    private static final Pattern BATCH_REFERENCE = Pattern.compile(
+            "\\b(batch|batches|current|this|these|those|my|our|we|us|mine|here)\\b");
+
+    private static final Pattern DOMAIN_TERM = Pattern.compile(
+            "\\b(reconciliation|reconcile|settlement|utr|dispute|disputed|chargeback|hold|held|refund|gst|mdr"
+                    + "|fee|fees|match rate|waterfall|payout|matched|mismatch|duplicate|unknown)\\b");
+
     private final LlmGateway llm;
     private final IngestBatchRepository ingestBatchRepository;
     private final MerchantOrderRepository orderRepository;
     private final SettlementBatchRepository settlementBatchRepository;
     private final BankEntryRepository bankEntryRepository;
     private final ExceptionRecordRepository exceptionRepository;
+    private final RagRetriever ragRetriever;
     private final String template;
+    private final String glossaryTemplate;
 
     public QuestionAnswerer(LlmGateway llm,
                             IngestBatchRepository ingestBatchRepository,
                             MerchantOrderRepository orderRepository,
                             SettlementBatchRepository settlementBatchRepository,
                             BankEntryRepository bankEntryRepository,
-                            ExceptionRecordRepository exceptionRepository) {
+                            ExceptionRecordRepository exceptionRepository,
+                            RagRetriever ragRetriever) {
         this.llm = llm;
         this.ingestBatchRepository = ingestBatchRepository;
         this.orderRepository = orderRepository;
         this.settlementBatchRepository = settlementBatchRepository;
         this.bankEntryRepository = bankEntryRepository;
         this.exceptionRepository = exceptionRepository;
+        this.ragRetriever = ragRetriever;
         this.template = LlmGateway.loadPrompt("question-answerer.txt");
+        this.glossaryTemplate = LlmGateway.loadPrompt("glossary.txt");
     }
 
     @Transactional
@@ -76,9 +102,23 @@ public class QuestionAnswerer {
             throw new ResponseStatusException(HttpStatus.NOT_FOUND, "unknown batch " + batchId);
         }
 
+        // Checked first, and it neither queries nor searches: "what is a chargeback" has no answer
+        // in anyone's rows, and looking for one only produces a refusal to a fair question.
+        if (isConceptual(question)) {
+            String prompt = glossaryTemplate
+                    .replace("{{glossary}}", StatusGlossary.rendered())
+                    .replace("{{question}}", question);
+            return AskResponse.conceptual(llm.complete(batchId, "LLM_ASK_CONCEPT", prompt).trim());
+        }
+
         Map<Long, Retrieved> rows = retrieve(batchId, question);
+        // A question naming a record has something exact to look up, so it keeps the SQL-only path
+        // it has always had. Similarity search would only add noise to an answer already grounded.
+        if (!hasExactAnchor(question)) {
+            addExcerpts(rows, ragRetriever.search(question, batchId));
+        }
         if (rows.isEmpty()) {
-            return new AskResponse(NOTHING_FOUND, List.of(), List.of());
+            return AskResponse.factual(NOTHING_FOUND, List.of(), List.of());
         }
 
         String rendered = rows.entrySet().stream()
@@ -89,18 +129,59 @@ public class QuestionAnswerer {
         ModelAnswer answer = llm.completeAs(batchId, "LLM_ASK", prompt, ModelAnswer.class);
 
         if (answer == null || answer.answer() == null || answer.answer().isBlank()) {
-            return new AskResponse(NOTHING_FOUND, List.of(), List.of());
+            return AskResponse.factual(NOTHING_FOUND, List.of(), List.of());
         }
         // Only ids that were actually handed over survive: the model cannot cite a row it never saw.
         List<Long> cited = answer.citedRowIds() == null
                 ? List.of()
                 : answer.citedRowIds().stream().filter(rows::containsKey).toList();
         List<Citation> citations = cited.stream().map(id -> rows.get(id).citation()).toList();
-        return new AskResponse(answer.answer().trim(), cited, citations);
+        return AskResponse.factual(answer.answer().trim(), cited, citations);
     }
 
     /** One retrieved row, in both the form the model reads and the form a person reads. */
     private record Retrieved(String rendered, Citation citation) {
+    }
+
+    /**
+     * True when the question names a specific record, so an exact lookup can answer it.
+     *
+     * <p>This is the switch that keeps today's behaviour intact: anything matching here takes the
+     * path it took before this feature existed, byte for byte.
+     */
+    public static boolean hasExactAnchor(String question) {
+        return ORDER_ID.matcher(question).find()
+                || UTR.matcher(question).find()
+                || DATE.matcher(question).find()
+                || AMOUNT.matcher(question).find()
+                || question.contains("₹");
+    }
+
+    /**
+     * True when the question asks what a term means rather than what happened.
+     *
+     * <p>All three conditions are required. A definitional phrase alone is not enough — "explain the
+     * mismatch in this batch" is a question about their data that happens to start with "explain",
+     * and answering it from a glossary would be a non-answer dressed as one.
+     */
+    public static boolean isConceptual(String question) {
+        String lower = question.toLowerCase(java.util.Locale.ROOT);
+        return DEFINITIONAL.matcher(lower).find()
+                && DOMAIN_TERM.matcher(lower).find()
+                && !BATCH_REFERENCE.matcher(lower).find()
+                && !hasExactAnchor(question);
+    }
+
+    /** Similarity hits joined to the exact rows, marked so the model can tell them apart. */
+    private static void addExcerpts(Map<Long, Retrieved> rows, List<Document> hits) {
+        long excerptId = -1_000L;
+        for (Document hit : hits) {
+            String recordId = String.valueOf(hit.getMetadata().getOrDefault("recordId", ""));
+            String recordType = String.valueOf(hit.getMetadata().getOrDefault("recordType", "EXCERPT"));
+            rows.put(excerptId--, new Retrieved(
+                    "[excerpt] " + hit.getText().replace('\n', ' '),
+                    new Citation(excerptId + 1, recordType, recordId, null, null, null)));
+        }
     }
 
     /** Looks up exactly what the question names, so every row offered can be traced back to it. */

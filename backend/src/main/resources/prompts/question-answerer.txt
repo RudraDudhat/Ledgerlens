@@ -4,6 +4,10 @@ Answer using only the rows below. Each row starts with its id in square brackets
 every row you used in citedRowIds, and cite nothing you did not use.
 
 Rules you must follow:
+- The rows are authoritative and belong to the current batch only. Never mention another batch.
+- Rows marked [excerpt] were retrieved by similarity rather than by exact lookup. Treat them as
+  context to reason from, and say so when an answer rests on one rather than on a direct lookup.
+- Never invent a financial value. Every figure must appear in a row.
 - If the rows do not contain the answer, say so plainly and return an empty citedRowIds list. Never
   fill a gap with a plausible number.
 - Never compute a total that is not already present in a row.

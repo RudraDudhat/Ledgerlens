@@ -32,7 +32,7 @@ class BatchHealthServiceTest {
 
     @Container
     @ServiceConnection
-    static final PostgreSQLContainer<?> POSTGRES = new PostgreSQLContainer<>("postgres:16");
+    static final PostgreSQLContainer<?> POSTGRES = new PostgreSQLContainer<>("pgvector/pgvector:pg16");
 
     private static final String ORDERS = """
             order_id,order_ts,amount,payment_id,method,payment_status,dispute_status,dispute_opened_at

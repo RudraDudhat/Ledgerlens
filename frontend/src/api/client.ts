@@ -66,14 +66,20 @@ export type ForecastEntry = {
 /** A row an answer stands on, named the way the merchant names it rather than by database key. */
 export type Citation = {
   id: number
-  kind: 'ORDER' | 'SETTLEMENT' | 'BANK_CREDIT' | 'EXCEPTION'
+  kind: 'ORDER' | 'SETTLEMENT' | 'BANK_CREDIT' | 'EXCEPTION' | 'MATCH'
   ref: string | null
   amount: number | null
   date: string | null
   note: string | null
 }
 
-export type AskResponse = { answer: string; citedRowIds: number[]; citations: Citation[] }
+/** CONCEPTUAL answers define a term and cite nothing; FACTUAL ones come from this batch's rows. */
+export type AskResponse = {
+  answer: string
+  citedRowIds: number[]
+  citations: Citation[]
+  answerKind: 'FACTUAL' | 'CONCEPTUAL'
+}
 export type NarrativeResponse = { narrative: string }
 
 export type Page<T> = { content: T[]; totalElements: number }

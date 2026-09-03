@@ -19,12 +19,28 @@ spring:
         # Without GEMINI_API_KEY the chat model is simply absent: reconciliation, the waterfall and
         # the metrics all still work, and only the three AI endpoints refuse.
         api-key: ${GEMINI_API_KEY:unset}
+        embedding:
+          # Its own key, deliberately: the embedding connection reads this prefix and not the chat
+          # one above, so omitting it leaves the app with no embedding model and fuzzy Ask search
+          # that silently finds nothing.
+          api-key: ${GEMINI_API_KEY:unset}
+          text:
+            options:
+              model: ${GEMINI_EMBEDDING_MODEL:gemini-embedding-001}
         chat:
           options:
             model: ${GEMINI_MODEL:gemini-3.6-flash}
             temperature: 0.0
 
 ledgerlens:
+  # Hybrid Ask retrieval. Off means the Ask panel behaves exactly as it did before vectors
+  # existed: exact lookups only, and nothing is indexed at the end of reconcile.
+  rag:
+    enabled: ${LEDGERLENS_RAG_ENABLED:true}
+    # One embedding request per document. Gemini's free tier allows a hundred a minute, so the
+    # default keeps a whole reconcile inside it; exceptions are indexed first and matches fill
+    # whatever is left. Raise it on a paid key.
+    max-documents: ${LEDGERLENS_RAG_MAX_DOCUMENTS:90}
   # Ground truth for /api/metrics/{batchId}. Scores are omitted when this file is absent,
   # which is the normal case for a real merchant batch.
   answer-key-path: ${LEDGERLENS_ANSWER_KEY_PATH:data/answer_key.json}

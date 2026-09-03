@@ -73,6 +73,19 @@
       <groupId>org.springframework.ai</groupId>
       <artifactId>spring-ai-starter-model-google-genai</artifactId>
     </dependency>
+    <!-- Embeddings are a separate module from the chat one: spring-ai-google-genai carries no
+         embedding classes at all, so without this the autoconfiguration silently never activates and
+         every fuzzy Ask question falls through to the refusal. -->
+    <dependency>
+      <groupId>org.springframework.ai</groupId>
+      <artifactId>spring-ai-starter-model-google-genai-embedding</artifactId>
+    </dependency>
+    <!-- VectorStore, SearchRequest and Filter for the hybrid Ask path. The store itself is
+         backed by rag_documents through JDBC, so no PgVectorStore autoconfiguration runs. -->
+    <dependency>
+      <groupId>org.springframework.ai</groupId>
+      <artifactId>spring-ai-vector-store</artifactId>
+    </dependency>
     <dependency>
       <groupId>com.razorpay</groupId>
       <artifactId>razorpay-java</artifactId>
