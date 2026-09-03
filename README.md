@@ -10,6 +10,14 @@ the Razorpay settlement report, the bank statement — and it:
 - **forecasts** what is still due to land, and on which day
 - **answers plain questions** from the rows themselves, citing the ones it used
 
+**[Live demo](https://ledgerlens-w0dk.onrender.com/)** — click **Load sample data**, then **Reconcile**.
+
+Hosted free, so the instance sleeps when idle: the first load takes 30–60 seconds to wake, and the
+first question after a reconcile waits on the index being built. The Gemini key behind it is a
+free-tier one too — if the Ask panel and the **What happened** narration stop answering, that quota
+has run out and will reset on its own. Nothing else is affected: the reconciliation, the waterfall,
+the exceptions and the forecast are deterministic and need no model at all.
+
 ---
 
 ## Quick start
